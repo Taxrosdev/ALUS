@@ -42,7 +42,7 @@ impl Deployable for Symlink {
         let deploy_path = deploy_parent_path.join(&self.name);
         fs::symlink(self.target.to_path_buf(), &deploy_path).await?;
 
-        Permissions::deploy(deploy_path, None, self.uid, self.gid).await?;
+        Permissions::deploy(deploy_path.to_path_buf(), None, self.uid, self.gid).await?;
 
         Ok(())
     }

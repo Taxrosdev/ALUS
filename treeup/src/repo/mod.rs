@@ -1,6 +1,7 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
+#[derive(Clone)]
 pub struct Repo {
-    pub objects_path: PathBuf,
-    pub blobs_path: PathBuf,
+    pub objects_path: Arc<PathBuf>,
+    pub blobs_path: Arc<PathBuf>,
 }

@@ -101,24 +101,43 @@ impl Deployable for Tree {
 
     async fn deploy(&self, repo: &Repo, deploy_path: &Path) -> io::Result<()> {
         fs::create_dir_all(deploy_path).await?;
+        Permissions::deploy(deploy_path.to_path_buf(), self.mode, self.uid, self.gid).await?;
 
-        Permissions::deploy(deploy_path, self.mode, self.uid, self.gid).await?;
+        let mut tasks = Vec::new();
 
         // Subtrees
         for subtree in &self.subtrees {
-            let tree = Tree::get(repo, &subtree.hash).await?;
             let path = deploy_path.join(subtree.name.to_path_buf());
-            tree.deploy(repo, &path).await?;
+            let repo = repo.clone();
+            let hash = subtree.hash.clone();
+            tasks.push(tokio::spawn(async move {
+                let tree = Tree::get(&repo, &hash).await?;
+                tree.deploy(&repo, &path).await
+            }));
         }
 
         // Files
         for file in &self.files {
-            file.deploy(repo, deploy_path).await?;
+            let repo = repo.clone();
+            let file = file.clone();
+            let deploy_path = deploy_path.to_path_buf();
+            tasks.push(tokio::spawn(async move {
+                file.deploy(&repo, &deploy_path).await
+            }));
         }
 
         // Symlinks
         for symlink in &self.symlinks {
-            symlink.deploy(repo, deploy_path).await?;
+            let repo = repo.clone();
+            let symlink = symlink.clone();
+            let deploy_path = deploy_path.to_path_buf();
+            tasks.push(tokio::spawn(async move {
+                symlink.deploy(&repo, &deploy_path).await
+            }));
+        }
+
+        for task in tasks {
+            task.await.expect("tokio join error on deploy")?;
         }
 
         Ok(())

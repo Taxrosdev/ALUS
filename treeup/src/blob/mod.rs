@@ -109,10 +109,10 @@ impl Deployable for BlobRef {
     }
 
     async fn deploy(&self, repo: &Repo, deploy_path: &Path) -> io::Result<()> {
-        let path = Self::local_path(repo, &self.hash).await?;
+        let path = Self::parentless_local_path(repo, &self.hash);
         fs::hard_link(path, deploy_path).await?;
 
-        Permissions::deploy(deploy_path, self.mode, self.uid, self.gid).await?;
+        Permissions::deploy(deploy_path.to_path_buf(), self.mode, self.uid, self.gid).await?;
 
         Ok(())
     }

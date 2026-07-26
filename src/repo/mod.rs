@@ -1,6 +1,7 @@
 use std::{
     io,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 use tokio::fs;
 use utils::EndsWithSlash;
@@ -34,8 +35,8 @@ impl Repo {
         let config = ConfigWrapper::new(config_path).await?;
 
         let treeup = treeup::Repo {
-            objects_path: local_path.join("objects"),
-            blobs_path: local_path.join("blobs"),
+            objects_path: Arc::new(local_path.join("objects")),
+            blobs_path: Arc::new(local_path.join("blobs")),
         };
 
         Ok(Repo {
