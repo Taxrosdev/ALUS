@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Ensure rustfmt is available
+        run: rustup component add rustfmt
+      - name: Check Formatting
+        run: cargo fmt --all --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  test:
+    name: Test (${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            toolchain: "1.85.0"
+
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build Library
+        run: cargo build --all-targets --all-features
+      - name: Run Unit & Integration Tests
+        run: cargo test --all-targets --all-features
+      - name: Test Documentation Code Samples
+        run: cargo test --doc

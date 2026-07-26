@@ -1,0 +1,21 @@
+[package]
+name = "treeup"
+license = "MIT or Apache-2.0"
+authors = ["Taxrosdev"]
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+async-trait.workspace = true
+blake3 = { workspace = true, features = ["mmap", "rayon"] }
+bytes.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["fs"] }
+utils = { path = "../utils" }
+
+[dev-dependencies]
+temp-dir = "0.2.0"
+tokio = { workspace = true, features = ["macros"] }
