@@ -64,7 +64,7 @@ impl Commit {
 
         // Switch staging <-> usr
         logging::log("Swapping staging and usr");
-        atomic_rename(&usr_staging_path, &usr_path)?;
+        atomic_rename(usr_staging_path.clone(), usr_path).await?;
         if fs::try_exists(&usr_staging_path).await? {
             logging::debug("Removing old usr...");
             fs::remove_dir_all(usr_staging_path).await?;

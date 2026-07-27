@@ -1,9 +1,13 @@
 use async_trait::async_trait;
 use std::{
-    io,
+    io::{self, Write},
     path::{Path, PathBuf},
 };
-use tokio::fs;
+use tokio::{
+    fs::{self, File},
+    io::AsyncWriteExt,
+};
+use tokio_stream::StreamExt;
 use utils::atomic_rename;
 
 use crate::{
@@ -72,28 +76,33 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
 
     async fn download(
         repo: &Repo,
-        downloader: Box<dyn Downloader>,
+        downloader: Box<impl Downloader>,
         hash: &str,
-    ) -> crate::error::Result<Self> {
+    ) -> crate::error::Result<()> {
         let path = Self::local_path_with_parent(repo, hash).await?;
         let tmp_path = path.with_extension(".tmp");
+        let mut tmp_file = File::create(&tmp_path).await?;
 
-        let raw = downloader
+        let stream = downloader
             .fetch(hash, DownloadKind::Object)
             .await
             .map_err(crate::error::Error::DownloaderError)?;
+        let mut stream = Box::pin(stream);
 
-        let calc_hash = blake3::hash(&raw).to_hex().to_string();
+        let mut hasher = blake3::Hasher::new();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(crate::error::Error::DownloaderError)?;
+            hasher.write_all(&chunk)?;
+            tmp_file.write_all(&chunk).await?;
+        }
+
+        let calc_hash = hasher.finalize().to_hex().to_string();
         if hash != calc_hash {
             return Err(crate::Error::HashError(hash.to_string(), calc_hash));
         }
 
-        fs::write(&tmp_path, &raw).await?;
-        atomic_rename(&tmp_path, &path)?;
-        let object = serde_json::from_str(
-            std::str::from_utf8(&raw).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
-        )?;
-        Ok(object)
+        atomic_rename(tmp_path, path).await?;
+        Ok(())
     }
 
     /// Get bordering dependencies

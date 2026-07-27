@@ -97,7 +97,9 @@ impl TreePuller {
                 &object_hash,
                 self.reqwest_downloader.clone(),
             )
-            .await?
+            .await?;
+
+            Tree::get(&self.repo.treeup, &object_hash).await?
         };
         self.progress.resolve.inc(1);
 
@@ -189,17 +191,17 @@ async fn clone_or_download_tree(
     old_repo: Option<Arc<Repo>>,
     object_hash: &str,
     downloader: Box<ReqwestDownloader>,
-) -> crate::error::Result<Tree> {
+) -> crate::error::Result<()> {
     // Try and clone the existing tree
     if let Some(old_repo) = &old_repo {
         let clone_success = Tree::try_clone(repo, &old_repo.treeup, object_hash).await?;
 
         if clone_success {
-            return Ok(Tree::get(repo, object_hash).await?);
+            return Ok(());
         }
     };
 
-    let tree = Tree::download(repo, downloader, object_hash).await?;
+    Tree::download(repo, downloader, object_hash).await?;
 
-    Ok(tree)
+    Ok(())
 }

@@ -3,10 +3,14 @@
 
 use async_trait::async_trait;
 use std::{
-    io,
+    io::{self, Write},
     path::{Path, PathBuf},
 };
-use tokio::fs;
+use tokio::{
+    fs::{self, File},
+    io::AsyncWriteExt,
+};
+use tokio_stream::StreamExt;
 use utils::atomic_rename;
 
 use crate::utils::permissions::Permissions;
@@ -63,20 +67,28 @@ impl BlobRef {
         downloader: Box<dyn Downloader>,
     ) -> crate::error::Result<()> {
         let path = self.local_path(repo).await?;
-        let tmp_path = self.local_path(repo).await?.with_extension(".tmp");
+        let tmp_path = self.local_path(repo).await?.with_extension("tmp");
+        let mut tmp_file = File::create(&tmp_path).await?;
 
-        let raw = downloader
+        let stream = downloader
             .fetch(&self.hash, DownloadKind::Blob)
             .await
             .map_err(crate::error::Error::DownloaderError)?;
+        let mut stream = Box::pin(stream);
 
-        let calc_hash = blake3::hash(&raw).to_hex().to_string();
+        let mut hasher = blake3::Hasher::new();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(crate::error::Error::DownloaderError)?;
+            hasher.write_all(&chunk)?;
+            tmp_file.write_all(&chunk).await?;
+        }
+
+        let calc_hash = hasher.finalize().to_hex().to_string();
         if self.hash != calc_hash {
             return Err(crate::Error::HashError(self.hash.clone(), calc_hash));
         }
 
-        fs::write(&tmp_path, raw).await?;
-        atomic_rename(&tmp_path, &path)?;
+        atomic_rename(tmp_path, path).await?;
         Ok(())
     }
 

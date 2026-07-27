@@ -92,8 +92,8 @@ async fn main() -> crate::error::Result<()> {
                     &(remote.clone() + "blobs"),
                 ));
 
-                let commit =
-                    Commit::download(&repo.treeup, reqwest_downloader.clone(), &pointer).await?;
+                Commit::download(&repo.treeup, reqwest_downloader.clone(), &pointer).await?;
+                let commit = Commit::get(&repo.treeup, &pointer).await?;
 
                 let tree_puller = TreePuller::new(
                     Arc::new(repo),

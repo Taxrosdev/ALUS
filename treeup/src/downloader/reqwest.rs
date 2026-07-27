@@ -1,5 +1,8 @@
 use async_trait::async_trait;
 use bytes::Bytes;
+use futures_core::Stream;
+use std::pin::Pin;
+use tokio_stream::StreamExt;
 
 use super::{DownloadKind, Downloader};
 
@@ -16,7 +19,10 @@ impl Downloader for ReqwestDownloader {
         &self,
         hash: &str,
         kind: DownloadKind,
-    ) -> Result<Bytes, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<
+        Pin<Box<dyn Stream<Item = Result<Bytes, Box<dyn std::error::Error + Send + Sync>>> + Send>>,
+        Box<dyn std::error::Error + Send + Sync>,
+    > {
         let base_url = match kind {
             DownloadKind::Object => &self.objects_base_url,
             DownloadKind::Blob => &self.blobs_base_url,
@@ -30,7 +36,9 @@ impl Downloader for ReqwestDownloader {
 
         let res = res.error_for_status()?;
 
-        Ok(res.bytes().await?)
+        Ok(Box::pin(res.bytes_stream().map(|r| {
+            r.map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+        })))
     }
 }
 
