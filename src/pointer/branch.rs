@@ -67,10 +67,6 @@ impl Branch {
         Commit::get(&repo.treeup, &self.target).await
     }
 
-    pub async fn commit_hash(&self, _repo: &Repo) -> io::Result<&str> {
-        Ok(&self.target)
-    }
-
     /// Exactly the same as `Self::get_commit`, expect will pull the commit if it doesn't already
     /// exist
     pub async fn pull_commit(

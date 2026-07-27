@@ -12,8 +12,15 @@ use treeup::{
     downloader::{Downloader, ReqwestDownloader},
     object::Object,
 };
+use utils::EndsWithSlash;
 
-use crate::{commit::Commit, logging::Progress, pointer::Pointer, pull::TreePuller, repo::Repo};
+use crate::{
+    commit::Commit,
+    logging::Progress,
+    pointer::{Branch, Pointer},
+    pull::TreePuller,
+    repo::Repo,
+};
 
 #[derive(Parser)]
 struct Args {
@@ -33,9 +40,13 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Commands {
-    Checkout {
-        pointer: String,
-    },
+    /// Permanently switches to a branch ONLY. Day-to-Day system administration should use this.
+    Switch { pointer: String },
+    /// Checks out *one time only*. Useful for inspecting a commit/branch in development.
+    Checkout { pointer: String },
+    /// Refreshes to the latest branch/commit and switches to it.
+    /// TLDR: Updates your computer!
+    Update,
     Pull {
         pointer: String,
         /// Clone from existing Blobs/Trees locally, if exists.
@@ -70,12 +81,49 @@ async fn main() -> crate::error::Result<()> {
     let mut repo = Repo::new(repo_path).await?;
 
     match args.command {
+        Commands::Update => {
+            let remote = get_remote(&repo);
+            let downloader = Arc::new(ReqwestDownloader::new(
+                &(remote.to_string() + "objects"),
+                &(remote.to_string() + "blobs"),
+                remote.clone(),
+            ));
+
+            // Get the latest commit from current
+            let branch = get_current_branch(&repo);
+            let _ = Branch::pull(&repo, branch.clone(), downloader.clone()).await;
+            let commit = resolve_pointer_remote(&repo, branch, downloader.clone()).await?;
+            let commit_hash = commit.hash()?;
+
+            // Pull
+            let tree_puller =
+                TreePuller::new(Arc::new(repo.clone()), downloader, Progress::new(), None);
+            tree_puller.download_commit(commit.clone(), false).await?;
+
+            // Switch/Checkout
+            fs::create_dir_all(&boot_path).await?;
+            let initramfs = &boot_path.join(format!("initramfs-{commit_hash}"));
+            let vmlinuz = &boot_path.join(format!("vmlinuz-{commit_hash}"));
+
+            commit.deploy(&repo, usr_path, initramfs, vmlinuz).await?;
+        }
+        Commands::Switch {
+            pointer: pointer_str,
+        } => {
+            let commit = resolve_pointer(&repo, pointer_str.clone()).await?;
+            let commit_hash = commit.hash()?;
+
+            fs::create_dir_all(&boot_path).await?;
+            let initramfs = &boot_path.join(format!("initramfs-{commit_hash}"));
+            let vmlinuz = &boot_path.join(format!("vmlinuz-{commit_hash}"));
+
+            commit.deploy(&repo, usr_path, initramfs, vmlinuz).await?;
+
+            repo.config.set_current_branch(pointer_str)?;
+        }
         Commands::Checkout { pointer } => {
             let commit = resolve_pointer(&repo, pointer.clone()).await?;
-            let pointer = Pointer::resolve_local(&repo, pointer)
-                .await?
-                .expect("could get commit then immediately deleted?");
-            let commit_hash = pointer.commit_hash(&repo).await?;
+            let commit_hash = commit.hash()?;
 
             fs::create_dir_all(&boot_path).await?;
             let initramfs = &boot_path.join(format!("initramfs-{commit_hash}"));
@@ -87,27 +135,24 @@ async fn main() -> crate::error::Result<()> {
             pointer,
             clone_from,
         } => {
-            if let Some(remote) = repo.config.remote() {
-                let clone_from = match clone_from {
-                    Some(path) => Some(Arc::new(Repo::new(path).await?)),
-                    None => None,
-                };
+            let remote = get_remote(&repo);
+            let clone_from = match clone_from {
+                Some(path) => Some(Arc::new(Repo::new(path).await?)),
+                None => None,
+            };
 
-                let downloader = Arc::new(ReqwestDownloader::new(
-                    &(remote.to_string() + "objects"),
-                    &(remote.to_string() + "blobs"),
-                    remote.clone(),
-                ));
+            let downloader = Arc::new(ReqwestDownloader::new(
+                &(remote.to_string() + "objects"),
+                &(remote.to_string() + "blobs"),
+                remote.clone(),
+            ));
 
-                let commit = resolve_pointer_remote(&repo, pointer, downloader.clone()).await?;
+            let commit = resolve_pointer_remote(&repo, pointer, downloader.clone()).await?;
 
-                let tree_puller =
-                    TreePuller::new(Arc::new(repo), downloader, Progress::new(), clone_from);
+            let tree_puller =
+                TreePuller::new(Arc::new(repo), downloader, Progress::new(), clone_from);
 
-                tree_puller.download_commit(commit, false).await?;
-            } else {
-                logging::die("No remote configured for Repo.")
-            }
+            tree_puller.download_commit(commit, false).await?;
         }
         Commands::Commit {
             initramfs,
@@ -170,5 +215,21 @@ async fn resolve_pointer_remote(
     match Pointer::resolve_all(repo, pointer, downloader.clone()).await? {
         Some(pointer) => Ok(pointer.pull_commit(repo, downloader).await?),
         None => panic!("Could not find pointer."),
+    }
+}
+
+/// Will die if remote is not set
+fn get_remote(repo: &Repo) -> EndsWithSlash {
+    match repo.config.remote() {
+        Some(remote) => remote.clone(),
+        None => logging::die("No remote configured for Repo."),
+    }
+}
+
+/// Will die if current is not set
+fn get_current_branch(repo: &Repo) -> String {
+    match repo.config.current_branch() {
+        Some(branch) => branch,
+        None => logging::die("Repo has no current.\nNever switched previously?"),
     }
 }

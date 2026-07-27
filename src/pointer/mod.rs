@@ -55,13 +55,6 @@ impl Pointer {
             .map(|branch_option| branch_option.map(|branch| Pointer::Branch { branch }))
     }
 
-    pub async fn commit_hash(&self, repo: &Repo) -> io::Result<&str> {
-        Ok(match self {
-            Pointer::Commit { hash } => hash,
-            Pointer::Branch { branch } => branch.commit_hash(repo).await?,
-        })
-    }
-
     pub async fn get_commit(&self, repo: &Repo) -> io::Result<Commit> {
         Ok(match self {
             Pointer::Commit { hash } => Commit::get(&repo.treeup, hash).await?,
