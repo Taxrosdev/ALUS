@@ -108,7 +108,9 @@ impl TreePuller {
         if !metadata_only {
             // Download dependent file
             for file in tree.files {
-                tasks.push(tokio::spawn(Self::download_blob(self.clone(), file.blob)))
+                if !file.blob.exists(&self.repo.treeup).await? {
+                    tasks.push(tokio::spawn(Self::download_blob(self.clone(), file.blob)))
+                };
             }
         }
 
@@ -131,10 +133,6 @@ impl TreePuller {
     }
 
     async fn download_blob(self, blob: BlobRef) -> crate::error::Result<()> {
-        if blob.exists(&self.repo.treeup).await? {
-            return Ok(());
-        };
-
         self.progress.download.inc_length(blob.size);
 
         let _permit = self.blob_limit.acquire().await.unwrap();
