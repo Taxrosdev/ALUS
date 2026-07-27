@@ -67,7 +67,7 @@ impl BlobRef {
         downloader: Box<dyn Downloader>,
     ) -> crate::error::Result<()> {
         let path = self.local_path(repo).await?;
-        let tmp_path = self.local_path(repo).await?.with_extension("tmp");
+        let tmp_path = path.with_extension("tmp");
         let mut tmp_file = File::create(&tmp_path).await?;
 
         let stream = downloader
