@@ -1,5 +1,6 @@
 use std::borrow::Borrow;
 
+#[derive(Clone)]
 pub struct EndsWithSlash(String);
 
 impl From<String> for EndsWithSlash {

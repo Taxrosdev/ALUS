@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use std::{
     io::{self, Write},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 use tokio::{
     fs::{self, File},
@@ -76,7 +77,7 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
 
     async fn download(
         repo: &Repo,
-        downloader: Box<impl Downloader>,
+        downloader: Arc<dyn Downloader>,
         hash: &str,
     ) -> crate::error::Result<()> {
         let path = Self::local_path_with_parent(repo, hash).await?;

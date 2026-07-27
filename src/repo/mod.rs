@@ -77,8 +77,8 @@ impl ConfigWrapper {
         self.config.resolve_limit.unwrap_or(5)
     }
 
-    pub fn remote(&self) -> Option<&str> {
-        self.config.remote.as_deref()
+    pub fn remote(&self) -> Option<&EndsWithSlash> {
+        self.config.remote.as_ref()
     }
 
     fn write(&self) -> io::Result<()> {

@@ -20,7 +20,7 @@ pub struct TreePuller {
     repo: Arc<Repo>,
     resolve_limit: Arc<Semaphore>,
     blob_limit: Arc<Semaphore>,
-    reqwest_downloader: Box<ReqwestDownloader>,
+    reqwest_downloader: Arc<ReqwestDownloader>,
 
     progress: Progress,
     clone_from: Option<Arc<Repo>>,
@@ -29,7 +29,7 @@ pub struct TreePuller {
 impl TreePuller {
     pub fn new(
         repo: Arc<Repo>,
-        reqwest_downloader: Box<ReqwestDownloader>,
+        reqwest_downloader: Arc<ReqwestDownloader>,
         progress: Progress,
         clone_from: Option<Arc<Repo>>,
     ) -> Self {
@@ -172,8 +172,8 @@ impl TreePuller {
 
         // Actually download
         let downloader =
-            ProgressDownloader::from_reqwest_downloader(*self.reqwest_downloader, downloaded);
-        blob.download(&self.repo.treeup, Box::new(downloader))
+            ProgressDownloader::from_reqwest_downloader(self.reqwest_downloader, downloaded);
+        blob.download(&self.repo.treeup, Arc::new(downloader))
             .await?;
 
         done.store(true, Ordering::Relaxed);
@@ -188,7 +188,7 @@ async fn clone_or_download_tree(
     repo: &treeup::Repo,
     old_repo: Option<Arc<Repo>>,
     object_hash: &str,
-    downloader: Box<ReqwestDownloader>,
+    downloader: Arc<ReqwestDownloader>,
 ) -> crate::error::Result<()> {
     // Try and clone the existing tree
     if let Some(old_repo) = &old_repo {

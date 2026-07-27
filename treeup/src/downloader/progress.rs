@@ -14,13 +14,16 @@ use crate::downloader::{DownloadKind, Downloader, ReqwestDownloader};
 
 #[derive(Clone)]
 pub struct ProgressDownloader {
-    reqwest: ReqwestDownloader,
+    reqwest: Arc<ReqwestDownloader>,
     downloaded: Arc<AtomicU64>,
 }
 
 impl ProgressDownloader {
     #[must_use]
-    pub fn from_reqwest_downloader(reqwest: ReqwestDownloader, downloaded: Arc<AtomicU64>) -> Self {
+    pub fn from_reqwest_downloader(
+        reqwest: Arc<ReqwestDownloader>,
+        downloaded: Arc<AtomicU64>,
+    ) -> Self {
         Self {
             reqwest,
             downloaded,
@@ -46,5 +49,9 @@ impl Downloader for ProgressDownloader {
                 downloaded.fetch_add(chunk.len() as u64, Ordering::Relaxed);
             })
         })))
+    }
+
+    async fn get_remote(&self) -> String {
+        self.reqwest.get_remote().await
     }
 }

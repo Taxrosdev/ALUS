@@ -79,17 +79,15 @@ async fn main() -> crate::error::Result<()> {
             clone_from,
         } => {
             if let Some(remote) = repo.config.remote() {
-                // Immediately drop, as we need to pass remote into `tree_puller`
-                let remote = remote.to_string();
-
                 let clone_from = match clone_from {
                     Some(path) => Some(Arc::new(Repo::new(path).await?)),
                     None => None,
                 };
 
-                let reqwest_downloader = Box::new(ReqwestDownloader::new(
-                    &(remote.clone() + "objects"),
-                    &(remote.clone() + "blobs"),
+                let reqwest_downloader = Arc::new(ReqwestDownloader::new(
+                    &(remote.to_string() + "objects"),
+                    &(remote.to_string() + "blobs"),
+                    remote.clone(),
                 ));
 
                 Commit::download(&repo.treeup, reqwest_downloader.clone(), &pointer).await?;
@@ -120,7 +118,12 @@ async fn main() -> crate::error::Result<()> {
         Commands::Config { command } => match command {
             ConfigCommand::Remote { url } => match url {
                 Some(url) => repo.config.set_remote(url)?,
-                None => logging::log(repo.config.remote().unwrap_or("")),
+                None => logging::log(
+                    repo.config
+                        .remote()
+                        .map(|remote| remote.to_string())
+                        .unwrap_or("".to_string()),
+                ),
             },
             ConfigCommand::ResolveLimit { limit } => match limit {
                 Some(limit) => repo.config.set_resolve_limit(Some(limit))?,

@@ -1,8 +1,7 @@
-use std::pin::Pin;
-
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures_core::Stream;
+use std::pin::Pin;
 
 mod reqwest;
 pub use reqwest::*;
@@ -20,6 +19,8 @@ pub trait Downloader: Send + Sync {
         Pin<Box<dyn Stream<Item = Result<Bytes, Box<dyn std::error::Error + Send + Sync>>> + Send>>,
         Box<dyn std::error::Error + Send + Sync>,
     >;
+
+    async fn get_remote(&self) -> String;
 }
 
 #[derive(Copy, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

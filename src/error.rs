@@ -7,6 +7,8 @@ pub enum Error {
     Serde(#[from] serde_json::Error),
     #[error("treeup error")]
     Treeup(#[from] treeup::Error),
+    #[error("network error")]
+    Reqwest(#[from] reqwest::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

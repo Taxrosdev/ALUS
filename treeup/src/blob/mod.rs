@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use std::{
     io::{self, Write},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 use tokio::{
     fs::{self, File},
@@ -64,7 +65,7 @@ impl BlobRef {
     pub async fn download(
         &self,
         repo: &Repo,
-        downloader: Box<dyn Downloader>,
+        downloader: Arc<dyn Downloader>,
     ) -> crate::error::Result<()> {
         let path = self.local_path(repo).await?;
         let tmp_path = path.with_extension("tmp");
