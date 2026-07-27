@@ -35,23 +35,23 @@ pub struct BlobRef {
 
 impl BlobRef {
     /// Get the path on-disk of this Blob
-    pub async fn local_path(repo: &Repo, hash: &str) -> io::Result<PathBuf> {
-        let parent_path = repo.blobs_path.join(&hash[..2]);
+    pub async fn local_path(&self, repo: &Repo) -> io::Result<PathBuf> {
+        let parent_path = repo.blobs_path.join(&self.hash[..2]);
         fs::create_dir_all(&parent_path).await?;
-        Ok(parent_path.join(&hash[2..]))
+        Ok(parent_path.join(&self.hash[2..]))
     }
 
     /// Get the path on-disk of this Blob
     ///
     /// Does not try to automatically create the parent directory.
     #[must_use]
-    pub fn parentless_local_path(repo: &Repo, hash: &str) -> PathBuf {
-        let parent_path = repo.blobs_path.join(&hash[..2]);
-        parent_path.join(&hash[2..])
+    pub fn parentless_local_path(&self, repo: &Repo) -> PathBuf {
+        let parent_path = repo.blobs_path.join(&self.hash[..2]);
+        parent_path.join(&self.hash[2..])
     }
 
     pub async fn exists(&self, repo: &Repo) -> io::Result<bool> {
-        let path = Self::parentless_local_path(repo, &self.hash);
+        let path = self.parentless_local_path(repo);
 
         fs::try_exists(&path).await
     }
@@ -62,10 +62,8 @@ impl BlobRef {
         repo: &Repo,
         downloader: Box<dyn Downloader>,
     ) -> crate::error::Result<()> {
-        let path = Self::local_path(repo, &self.hash).await?;
-        let tmp_path = Self::local_path(repo, &self.hash)
-            .await?
-            .with_extension(".tmp");
+        let path = self.local_path(repo).await?;
+        let tmp_path = self.local_path(repo).await?.with_extension(".tmp");
 
         let raw = downloader
             .fetch(&self.hash, DownloadKind::Blob)
@@ -81,6 +79,27 @@ impl BlobRef {
         atomic_rename(&tmp_path, &path)?;
         Ok(())
     }
+
+    /// Tries to clone a Blob from `old_repo` to `new_repo`.
+    /// Not to be confused with `clone`.
+    ///
+    /// Returns whether it was found locally and used.
+    pub async fn try_clone(&self, old_repo: &Repo, new_repo: &Repo) -> io::Result<bool> {
+        if !self.exists(old_repo).await? {
+            return Ok(false);
+        }
+
+        let old_path = self.parentless_local_path(old_repo);
+        let new_path = self.local_path(new_repo).await?;
+
+        if fs::hard_link(&old_path, &new_path).await.is_err() {
+            // Fallback to copying. Installers are commonly on removable media, and not on the same
+            // partition.
+            fs::copy(old_path, new_path).await?;
+        }
+
+        Ok(true)
+    }
 }
 
 #[async_trait]
@@ -90,26 +109,27 @@ impl Deployable for BlobRef {
         hasher.update_mmap_rayon(path)?;
         let hash = hasher.finalize().to_string();
 
-        let blob_path = Self::local_path(repo, &hash).await?;
-
-        if !fs::try_exists(&blob_path).await? {
-            fs::hard_link(path, blob_path).await?;
-        }
-
         let permissions = Permissions::get(path).await?;
 
-        Ok(BlobRef {
+        let blob = BlobRef {
             hash: hash.clone(),
             size: fs::metadata(path).await?.len(),
 
             uid: permissions.uid,
             gid: permissions.gid,
             mode: permissions.mode,
-        })
+        };
+        let blob_path = blob.local_path(repo).await?;
+
+        if !fs::try_exists(&blob_path).await? {
+            fs::hard_link(path, blob_path).await?;
+        }
+
+        Ok(blob)
     }
 
     async fn deploy(&self, repo: &Repo, deploy_path: &Path) -> io::Result<()> {
-        let path = Self::parentless_local_path(repo, &self.hash);
+        let path = self.parentless_local_path(repo);
         fs::hard_link(path, deploy_path).await?;
 
         Permissions::deploy(deploy_path.to_path_buf(), self.mode, self.uid, self.gid).await?;

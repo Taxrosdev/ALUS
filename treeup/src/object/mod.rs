@@ -49,6 +49,27 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
         Ok(fs::try_exists(&path).await?)
     }
 
+    /// Tries to clone an `Object` from `old_repo` to `new_repo`.
+    /// Not to be confused with `clone`.
+    ///
+    /// Returns whether it was found locally and used.
+    async fn try_clone(old_repo: &Repo, new_repo: &Repo, hash: &str) -> io::Result<bool> {
+        if !Self::exists(old_repo, hash).await? {
+            return Ok(false);
+        }
+
+        let old_path = Self::local_path(old_repo, hash);
+        let new_path = Self::local_path_with_parent(new_repo, hash).await?;
+
+        if fs::hard_link(&old_path, &new_path).await.is_err() {
+            // Fallback to copying. Installers are commonly on removable media, and not on the same
+            // partition.
+            fs::copy(old_path, new_path).await?;
+        }
+
+        Ok(true)
+    }
+
     async fn download(
         repo: &Repo,
         downloader: Box<dyn Downloader>,

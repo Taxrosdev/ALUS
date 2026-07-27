@@ -1,7 +1,10 @@
 use async_recursion::async_recursion;
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, AtomicU64, Ordering},
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+    },
+    time::Duration,
 };
 use tokio::{sync::Semaphore, time::sleep};
 use treeup::{
@@ -20,6 +23,7 @@ pub struct TreePuller {
     reqwest_downloader: Box<ReqwestDownloader>,
 
     progress: Progress,
+    clone_from: Option<Arc<Repo>>,
 }
 
 impl TreePuller {
@@ -27,6 +31,7 @@ impl TreePuller {
         repo: Arc<Repo>,
         reqwest_downloader: Box<ReqwestDownloader>,
         progress: Progress,
+        clone_from: Option<Arc<Repo>>,
     ) -> Self {
         Self {
             repo: repo.clone(),
@@ -35,6 +40,7 @@ impl TreePuller {
             blob_limit: Arc::new(Semaphore::new(repo.config.download_limit() as usize)),
 
             progress,
+            clone_from,
         }
     }
 
@@ -84,10 +90,12 @@ impl TreePuller {
         } else {
             // Download THIS tree
             let _limit = self.resolve_limit.acquire().await.unwrap();
-            Tree::download(
+
+            clone_or_download_tree(
                 &self.repo.treeup,
-                self.reqwest_downloader.clone(),
+                self.clone_from.clone(),
                 &object_hash,
+                self.reqwest_downloader.clone(),
             )
             .await?
         };
@@ -132,12 +140,22 @@ impl TreePuller {
         let downloaded = Arc::new(AtomicU64::new(0));
         let done = Arc::new(AtomicBool::new(false));
 
+        // Try clone, if not continue
+        if let Some(old_repo) = self.clone_from {
+            let success = blob.try_clone(&old_repo.treeup, &self.repo.treeup).await?;
+
+            if success {
+                self.progress.download.inc(blob.size);
+                return Ok(());
+            }
+        }
+
         let poll_handle = {
             let pb = self.progress.download.clone();
             let downloaded = downloaded.clone();
             let done = done.clone();
             tokio::spawn(async move {
-                let dur = std::time::Duration::from_millis(100);
+                let dur = Duration::from_millis(100);
                 let mut prev = 0u64;
                 while !done.load(Ordering::Relaxed) {
                     let now = downloaded.load(Ordering::Relaxed);
@@ -163,4 +181,25 @@ impl TreePuller {
 
         Ok(())
     }
+}
+
+/// Tries to clone, or downloads if cannot clone.
+async fn clone_or_download_tree(
+    repo: &treeup::Repo,
+    old_repo: Option<Arc<Repo>>,
+    object_hash: &str,
+    downloader: Box<ReqwestDownloader>,
+) -> crate::error::Result<Tree> {
+    // Try and clone the existing tree
+    if let Some(old_repo) = &old_repo {
+        let clone_success = Tree::try_clone(repo, &old_repo.treeup, object_hash).await?;
+
+        if clone_success {
+            return Ok(Tree::get(repo, object_hash).await?);
+        }
+    };
+
+    let tree = Tree::download(repo, downloader, object_hash).await?;
+
+    Ok(tree)
 }

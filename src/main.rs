@@ -34,6 +34,10 @@ enum Commands {
     },
     Pull {
         pointer: String,
+        /// Clone from existing Blobs/Trees locally, if exists.
+        /// Useful for installers.
+        #[arg(long)]
+        clone_from: Option<PathBuf>,
     },
     Commit {
         initramfs: PathBuf,
@@ -70,10 +74,18 @@ async fn main() -> crate::error::Result<()> {
             let commit = Commit::get(&repo.treeup, &pointer).await?;
             commit.deploy(&repo, usr_path, initramfs, vmlinuz).await?;
         }
-        Commands::Pull { pointer } => {
+        Commands::Pull {
+            pointer,
+            clone_from,
+        } => {
             if let Some(remote) = repo.config.remote() {
                 // Immediately drop, as we need to pass remote into `tree_puller`
                 let remote = remote.to_string();
+
+                let clone_from = match clone_from {
+                    Some(path) => Some(Arc::new(Repo::new(path).await?)),
+                    None => None,
+                };
 
                 let reqwest_downloader = Box::new(ReqwestDownloader::new(
                     &(remote.clone() + "objects"),
@@ -83,8 +95,12 @@ async fn main() -> crate::error::Result<()> {
                 let commit =
                     Commit::download(&repo.treeup, reqwest_downloader.clone(), &pointer).await?;
 
-                let tree_puller =
-                    TreePuller::new(Arc::new(repo), reqwest_downloader, Progress::new());
+                let tree_puller = TreePuller::new(
+                    Arc::new(repo),
+                    reqwest_downloader,
+                    Progress::new(),
+                    clone_from,
+                );
 
                 tree_puller.download_commit(commit, false).await?;
             } else {
