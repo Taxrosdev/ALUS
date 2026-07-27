@@ -194,7 +194,7 @@ async fn clone_or_download_tree(
 ) -> crate::error::Result<()> {
     // Try and clone the existing tree
     if let Some(old_repo) = &old_repo {
-        let clone_success = Tree::try_clone(repo, &old_repo.treeup, object_hash).await?;
+        let clone_success = Tree::try_clone(&old_repo.treeup, repo, object_hash).await?;
 
         if clone_success {
             return Ok(());
