@@ -18,7 +18,7 @@ pub fn warn(message: impl AsRef<str>) {
     eprintln!("Warning: {}", style(message.as_ref()).yellow());
 }
 
-pub fn die(message: impl AsRef<str>) {
+pub fn die(message: impl AsRef<str>) -> ! {
     eprintln!("Fatal Error: {}", style(message.as_ref()).red());
     exit(1)
 }
