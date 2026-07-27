@@ -1,17 +1,19 @@
-use std::{process::exit, time::Duration};
+use std::{
+    process::{Output, exit},
+    time::Duration,
+};
 
-use console::style;
+use console::{Style, style};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
 pub fn log(message: impl AsRef<str>) {
     println!("{}", style(message.as_ref()));
 }
 
+const STYLE_DEBUG: Style = Style::new().color256(248).force_styling(true);
+
 pub fn debug(message: impl AsRef<str>) {
-    println!(
-        "{}",
-        style(message.as_ref()).color256(248).force_styling(true)
-    );
+    println!("{}", STYLE_DEBUG.apply_to(message.as_ref()));
 }
 
 pub fn warn(message: impl AsRef<str>) {
@@ -21,6 +23,18 @@ pub fn warn(message: impl AsRef<str>) {
 pub fn die(message: impl AsRef<str>) -> ! {
     eprintln!("Fatal Error: {}", style(message.as_ref()).red());
     exit(1)
+}
+
+pub fn hook(output: &Output) {
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    for line in stderr.lines() {
+        eprintln!("[Hook]: {}", style(line).red());
+    }
+    for line in stdout.lines() {
+        eprintln!("[Hook]: {}", STYLE_DEBUG.apply_to(line));
+    }
 }
 
 #[derive(Clone)]

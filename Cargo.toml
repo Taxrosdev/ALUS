@@ -39,3 +39,5 @@ tokio = { workspace = true, features = ["macros", "fs", "rt-multi-thread"] }
 
 treeup = { path = "./treeup" }
 utils = { path = "./utils" }
+nix = { workspace = true, features = ["process", "sched"] }
+toml = "1.1.3"

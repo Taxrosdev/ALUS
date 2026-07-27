@@ -7,7 +7,7 @@ use treeup::{
 };
 use utils::atomic_rename;
 
-use crate::{logging, repo::Repo};
+use crate::{hooks::Hook, logging, repo::Repo};
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct Commit {
@@ -61,6 +61,15 @@ impl Commit {
         let usr_tree = Tree::get(&repo.treeup, &self.usr_tree).await?;
         logging::debug("Deploying usr tree");
         usr_tree.deploy(&repo.treeup, &usr_staging_path).await?;
+
+        // Run hooks
+        logging::debug("Loading hooks...");
+        let hooks = Hook::load_hooks(&PathBuf::from("/usr")).await?;
+        for hook in hooks {
+            logging::log(&hook.description);
+            hook.run(usr_staging_path.clone()).await?;
+        }
+        logging::debug("Finished hooks");
 
         // Switch staging <-> usr
         logging::log("Swapping staging and usr");

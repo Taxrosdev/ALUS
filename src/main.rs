@@ -1,5 +1,6 @@
 mod commit;
 mod error;
+mod hooks;
 mod logging;
 mod pointer;
 mod pull;
