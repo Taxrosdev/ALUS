@@ -96,8 +96,11 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
             tmp_file.write_all(&chunk).await?;
         }
 
+        drop(tmp_file);
+
         let calc_hash = hasher.finalize().to_hex().to_string();
         if hash != calc_hash {
+            fs::remove_file(tmp_path).await?;
             return Err(crate::Error::HashError(hash.to_string(), calc_hash));
         }
 
