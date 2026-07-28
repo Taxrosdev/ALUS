@@ -58,8 +58,10 @@ impl Hook {
         let mut hooks = Vec::new();
         let mut read_dir = fs::read_dir(prefix.join(HOOKS_PATH)).await?;
         while let Some(entry) = read_dir.next_entry().await? {
-            let raw = fs::read_to_string(entry.path()).await?;
-            hooks.push(toml::from_str(&raw)?);
+            if entry.file_name().to_string_lossy().ends_with(".toml") {
+                let raw = fs::read_to_string(entry.path()).await?;
+                hooks.push(toml::from_str(&raw)?);
+            }
         }
 
         Ok(hooks)
