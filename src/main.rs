@@ -71,6 +71,7 @@ enum ConfigCommand {
     Remote { url: Option<String> },
     DownloadLimit { limit: Option<u64> },
     ResolveLimit { limit: Option<u64> },
+    CurrentBranch { branch: Option<String> },
 }
 
 #[tokio::main]
@@ -182,6 +183,10 @@ async fn main() -> crate::error::Result<()> {
             ConfigCommand::DownloadLimit { limit } => match limit {
                 Some(limit) => repo.config.set_download_limit(Some(limit))?,
                 None => logging::log(repo.config.download_limit().to_string()),
+            },
+            ConfigCommand::CurrentBranch { branch } => match branch {
+                Some(limit) => repo.config.set_current_branch(limit)?,
+                None => logging::log(repo.config.current_branch().unwrap_or("".to_string())),
             },
         },
     }
