@@ -81,7 +81,7 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
         hash: &str,
     ) -> crate::error::Result<()> {
         let path = Self::local_path_with_parent(repo, hash).await?;
-        let tmp_path = path.with_extension(".tmp");
+        let tmp_path = path.with_extension("tmp");
         let mut tmp_file = File::create(&tmp_path).await?;
 
         let stream = downloader
