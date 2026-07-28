@@ -2,12 +2,11 @@ mod sandbox;
 
 use std::{
     collections::HashMap,
-    io,
     path::{Path, PathBuf},
 };
 use tokio::fs;
 
-use crate::{error::Error, hooks::sandbox::SandboxInstance, logging};
+use crate::hooks::sandbox::SandboxInstance;
 
 const HOOKS_PATH: &str = "share/alus/hooks";
 
@@ -31,29 +30,21 @@ pub struct Hook {
 
 impl Hook {
     pub async fn run(&self, usr: PathBuf) -> crate::error::Result<()> {
-        let mut sandbox = SandboxInstance::prepare().await?;
+        let mut sandbox = SandboxInstance::prepare(usr).await?;
 
         for (path, permission) in self.permissions.iter() {
-            let path = if path == "usr" {
-                usr.clone()
-            } else {
-                path.to_path_buf()
-            };
-
             let read_only = match permission {
-                Permission::ReadOnly => false,
-                Permission::ReadWrite => true,
+                Permission::ReadOnly => true,
+                Permission::ReadWrite => false,
             };
-            sandbox.with_mount(path, read_only);
+            if path == &PathBuf::from("usr") {
+                sandbox.with_usr_ro(read_only);
+            } else {
+                sandbox.with_mount(path.to_owned(), read_only);
+            }
         }
 
-        let output = sandbox.run(self.exec.clone()).unwrap();
-
-        logging::hook(&output);
-
-        if !output.status.success() {
-            return Err(Error::HookExit(output.status));
-        }
+        sandbox.run_sandboxed(&self.exec)?;
 
         Ok(())
     }

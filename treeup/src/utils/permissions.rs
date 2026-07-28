@@ -11,7 +11,7 @@ pub struct Permissions {
 
 impl Permissions {
     pub async fn get(path: impl AsRef<Path>) -> io::Result<Permissions> {
-        let metadata = fs::metadata(path).await?;
+        let metadata = fs::symlink_metadata(path).await?;
 
         Ok(Permissions {
             mode: Some(metadata.mode()),
@@ -26,14 +26,14 @@ impl Permissions {
         uid: Option<u32>,
         gid: Option<u32>,
     ) -> io::Result<()> {
-        if let Some(mode) = mode {
-            let permissions = std::fs::Permissions::from_mode(mode);
-            fs::set_permissions(&path, permissions).await?;
-        }
-
         // ALUS runs as root in 99% of scenarios.
         if uid.unwrap_or(0) != 0 || gid.unwrap_or(0) != 0 {
-            chown(path, uid, gid).await?;
+            chown(path.clone(), uid, gid).await?;
+        }
+
+        if let Some(mode) = mode {
+            let permissions = std::fs::Permissions::from_mode(mode);
+            fs::set_permissions(path, permissions).await?;
         }
 
         Ok(())

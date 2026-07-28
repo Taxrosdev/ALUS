@@ -37,6 +37,8 @@ impl Commit {
         initramfs_path: &Path,
         vmlinuz_path: &Path,
     ) -> crate::error::Result<()> {
+        logging::debug(format!("Deploying commit {}", self.hash()?));
+
         // Prepare staging usr
         let usr_staging_path = repo.local_path.join("staging");
         if fs::try_exists(&usr_staging_path).await? {
@@ -64,7 +66,7 @@ impl Commit {
 
         // Run hooks
         logging::debug("Loading hooks...");
-        let hooks = Hook::load_hooks(&PathBuf::from("/usr")).await?;
+        let hooks = Hook::load_hooks(&usr_staging_path).await?;
         for hook in hooks {
             logging::log(&hook.description);
             hook.run(usr_staging_path.clone()).await?;

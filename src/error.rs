@@ -1,5 +1,3 @@
-use std::process::ExitStatus;
-
 #[derive(thiserror::Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
@@ -14,7 +12,9 @@ pub enum Error {
     #[error("network error")]
     Reqwest(#[from] reqwest::Error),
     #[error("hook exited nonzero")]
-    HookExit(ExitStatus),
+    HookExit(i32),
+    #[error("hook container crashed unexpectedly")]
+    HookRunner,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
