@@ -67,7 +67,7 @@ impl Branch {
         Commit::get(&repo.treeup, &self.target).await
     }
 
-    /// Exactly the same as `Self::get_commit`, expect will pull the commit if it doesn't already
+    /// Exactly the same as `Self::get_commit`, except will pull the commit if it doesn't already
     /// exist
     pub async fn pull_commit(
         &self,
