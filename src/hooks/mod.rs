@@ -19,6 +19,7 @@ pub struct Hook {
 
     /// Paths to watch for changes. On change, rerun this Hook.
     /// TODO: Actually implement this. As of current, this is always reexecuted.
+    #[serde(default)]
     pub watch: Vec<PathBuf>,
 
     #[serde(default)]
