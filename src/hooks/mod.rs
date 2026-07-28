@@ -30,8 +30,8 @@ pub struct Hook {
 }
 
 impl Hook {
-    pub async fn run(&self, usr: PathBuf) -> crate::error::Result<()> {
-        let mut sandbox = SandboxInstance::prepare(usr).await?;
+    pub async fn run(&self, usr: PathBuf, host_sysroot: &Path) -> crate::error::Result<()> {
+        let mut sandbox = SandboxInstance::prepare(usr, host_sysroot).await?;
 
         for (path, permission) in self.permissions.iter() {
             let read_only = match permission {

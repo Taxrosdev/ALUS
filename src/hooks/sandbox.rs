@@ -28,18 +28,21 @@ pub struct SandboxInstance {
     mounts: Vec<Mount>,
     usr: PathBuf,
     usr_read_only: bool,
+    host_sysroot: PathBuf,
 }
 
 impl SandboxInstance {
-    pub async fn prepare(usr: PathBuf) -> io::Result<Self> {
+    pub async fn prepare(usr: PathBuf, host_sysroot: &Path) -> io::Result<Self> {
         let root = generate_root(ROOT_PREFIX.into()).await?;
         let usr = usr.strip_prefix("/").unwrap_or(&usr).to_path_buf();
+        let host_sysroot = host_sysroot.strip_prefix("/").unwrap_or(host_sysroot);
 
         let instance = SandboxInstance {
             root,
             mounts: Vec::new(),
             usr,
             usr_read_only: true,
+            host_sysroot: host_sysroot.to_path_buf(),
         };
 
         Ok(instance)
@@ -204,7 +207,7 @@ impl SandboxInstance {
         for mount_spec in &self.mounts {
             std::fs::create_dir_all(&mount_spec.path)?;
             mount(
-                Some(&old_root.join(&mount_spec.path)),
+                Some(&old_root.join(&self.host_sysroot).join(&mount_spec.path)),
                 &mount_spec.path,
                 NO_FILESYSTEM,
                 MsFlags::MS_BIND

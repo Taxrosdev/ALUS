@@ -99,7 +99,9 @@ async fn main() -> Result<()> {
             let initramfs = &boot_path.join(format!("initramfs-{commit_hash}"));
             let vmlinuz = &boot_path.join(format!("vmlinuz-{commit_hash}"));
 
-            commit.deploy(&repo, usr_path, initramfs, vmlinuz).await?;
+            commit
+                .deploy(&repo, usr_path, initramfs, vmlinuz, &PathBuf::from("/"))
+                .await?;
         }
         Commands::Switch {
             pointer: pointer_str,

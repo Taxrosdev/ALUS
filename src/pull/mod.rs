@@ -13,7 +13,7 @@ use treeup::{
     object::Object,
 };
 
-use crate::{Progress, commit::Commit, repo::Repo};
+use crate::{commit::Commit, logging::Progress, repo::Repo};
 
 #[derive(Clone)]
 pub struct TreePuller {

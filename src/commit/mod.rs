@@ -36,8 +36,9 @@ impl Commit {
         usr_path: PathBuf,
         initramfs_path: &Path,
         vmlinuz_path: &Path,
+        sysroot: &Path,
     ) -> crate::error::Result<()> {
-        self.deploy_usr(repo, usr_path).await?;
+        self.deploy_usr(repo, usr_path, sysroot).await?;
         self.deploy_kernel(repo, initramfs_path, vmlinuz_path)
             .await?;
 
@@ -64,7 +65,12 @@ impl Commit {
         Ok(())
     }
 
-    pub async fn deploy_usr(&self, repo: &Repo, usr_path: PathBuf) -> crate::error::Result<()> {
+    pub async fn deploy_usr(
+        &self,
+        repo: &Repo,
+        usr_path: PathBuf,
+        sysroot: &Path,
+    ) -> crate::error::Result<()> {
         logging::debug(format!("Deploying commit {}", self.hash()?));
 
         // Prepare staging usr
@@ -88,7 +94,7 @@ impl Commit {
         let hooks = Hook::load_hooks(&usr_staging_path).await?;
         for hook in hooks {
             logging::log(&hook.description);
-            hook.run(usr_staging_path.clone()).await?;
+            hook.run(usr_staging_path.clone(), sysroot).await?;
         }
         logging::debug("Finished hooks");
 
