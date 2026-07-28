@@ -44,7 +44,11 @@ impl Hook {
             }
         }
 
-        sandbox.run_sandboxed(&self.exec)?;
+        if self.unsandboxed {
+            sandbox.run_unsandboxed(&self.exec)?;
+        } else {
+            sandbox.run_sandboxed(&self.exec)?;
+        }
 
         Ok(())
     }
