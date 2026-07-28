@@ -113,7 +113,9 @@ async fn main() -> Result<()> {
             let initramfs = &boot_path.join(format!("initramfs-{commit_hash}"));
             let vmlinuz = &boot_path.join(format!("vmlinuz-{commit_hash}"));
 
-            commit.deploy(&repo, usr_path, initramfs, vmlinuz).await?;
+            commit
+                .deploy(&repo, usr_path, initramfs, vmlinuz, &PathBuf::from("/"))
+                .await?;
 
             repo.config.set_current_branch(pointer_str)?;
         }
@@ -125,7 +127,9 @@ async fn main() -> Result<()> {
             let initramfs = &boot_path.join(format!("initramfs-{commit_hash}"));
             let vmlinuz = &boot_path.join(format!("vmlinuz-{commit_hash}"));
 
-            commit.deploy(&repo, usr_path, initramfs, vmlinuz).await?;
+            commit
+                .deploy(&repo, usr_path, initramfs, vmlinuz, &PathBuf::from("/"))
+                .await?;
         }
         Commands::Pull {
             pointer,
