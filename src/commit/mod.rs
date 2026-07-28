@@ -37,6 +37,34 @@ impl Commit {
         initramfs_path: &Path,
         vmlinuz_path: &Path,
     ) -> crate::error::Result<()> {
+        self.deploy_usr(repo, usr_path).await?;
+        self.deploy_kernel(repo, initramfs_path, vmlinuz_path)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn deploy_kernel(
+        &self,
+        repo: &Repo,
+        initramfs_path: &Path,
+        vmlinuz_path: &Path,
+    ) -> crate::error::Result<()> {
+        logging::debug(format!("Deploying commit {}", self.hash()?));
+
+        // Deploy initramfs/vmlinuz
+        logging::log("Deploying new initramfs/vmlinuz...");
+        if !fs::try_exists(initramfs_path).await? {
+            self.initramfs.deploy(&repo.treeup, initramfs_path).await?
+        };
+        if !fs::try_exists(vmlinuz_path).await? {
+            self.vmlinuz.deploy(&repo.treeup, vmlinuz_path).await?
+        };
+
+        Ok(())
+    }
+
+    pub async fn deploy_usr(&self, repo: &Repo, usr_path: PathBuf) -> crate::error::Result<()> {
         logging::debug(format!("Deploying commit {}", self.hash()?));
 
         // Prepare staging usr
@@ -47,15 +75,6 @@ impl Commit {
 
             fs::remove_dir_all(&usr_staging_path).await?;
         }
-
-        // Deploy initramfs/vmlinuz
-        logging::log("Deploying new initramfs/vmlinuz...");
-        if !fs::try_exists(initramfs_path).await? {
-            self.initramfs.deploy(&repo.treeup, initramfs_path).await?
-        };
-        if !fs::try_exists(vmlinuz_path).await? {
-            self.vmlinuz.deploy(&repo.treeup, vmlinuz_path).await?
-        };
 
         // Deploy to staging
         logging::log("Preparing staging usr...");
