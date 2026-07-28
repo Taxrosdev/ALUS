@@ -207,7 +207,7 @@ async fn resolve_pointer(repo: &Repo, pointer: String) -> Result<Commit> {
 async fn resolve_pointer_local(repo: &Repo, pointer: String) -> io::Result<Commit> {
     match Pointer::resolve_local(repo, pointer).await? {
         Some(pointer) => Ok(pointer.get_commit(repo).await?),
-        None => panic!("Could not find pointer."),
+        None => logging::die("Could not find pointer."),
     }
 }
 
@@ -218,7 +218,7 @@ async fn resolve_pointer_remote(
 ) -> Result<Commit> {
     match Pointer::resolve_all(repo, pointer, downloader.clone()).await? {
         Some(pointer) => Ok(pointer.pull_commit(repo, downloader).await?),
-        None => panic!("Could not find pointer."),
+        None => logging::die("Could not find pointer."),
     }
 }
 
