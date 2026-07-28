@@ -1,11 +1,11 @@
-mod commit;
-mod error;
-mod hooks;
-mod logging;
-mod pointer;
-mod pull;
-mod repo;
-
+use alus::{
+    Result,
+    commit::Commit,
+    logging::{self, Progress},
+    pointer::{Branch, Pointer},
+    pull::TreePuller,
+    repo::Repo,
+};
 use clap::{Parser, Subcommand};
 use std::{io, path::PathBuf, sync::Arc};
 use tokio::fs;
@@ -14,14 +14,6 @@ use treeup::{
     object::Object,
 };
 use utils::EndsWithSlash;
-
-use crate::{
-    commit::Commit,
-    logging::Progress,
-    pointer::{Branch, Pointer},
-    pull::TreePuller,
-    repo::Repo,
-};
 
 #[derive(Parser)]
 struct Args {
@@ -75,7 +67,7 @@ enum ConfigCommand {
 }
 
 #[tokio::main]
-async fn main() -> crate::error::Result<()> {
+async fn main() -> Result<()> {
     let args = Args::parse();
     let repo_path = args.repo.unwrap_or_else(|| PathBuf::from("/.alus"));
     let usr_path = args.usr.unwrap_or_else(|| PathBuf::from("/usr"));
@@ -193,7 +185,7 @@ async fn main() -> crate::error::Result<()> {
     Ok(())
 }
 
-async fn resolve_pointer(repo: &Repo, pointer: String) -> crate::error::Result<Commit> {
+async fn resolve_pointer(repo: &Repo, pointer: String) -> Result<Commit> {
     Ok(match repo.config.remote() {
         Some(remote) => {
             let downloader = Arc::new(ReqwestDownloader::new(
@@ -217,7 +209,7 @@ async fn resolve_pointer_remote(
     repo: &Repo,
     pointer: String,
     downloader: Arc<dyn Downloader>,
-) -> crate::error::Result<Commit> {
+) -> Result<Commit> {
     match Pointer::resolve_all(repo, pointer, downloader.clone()).await? {
         Some(pointer) => Ok(pointer.pull_commit(repo, downloader).await?),
         None => panic!("Could not find pointer."),
