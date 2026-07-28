@@ -1,27 +1,29 @@
+use console::{Style, style};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use std::{
     process::{Output, exit},
     time::Duration,
 };
 
-use console::{Style, style};
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+const STYLE_LOG: Style = Style::new();
+const STYLE_WARN: Style = Style::new().yellow();
+const STYLE_DEBUG: Style = Style::new().color256(248).force_styling(true);
+const STYLE_FATAL: Style = Style::new().red();
 
 pub fn log(message: impl AsRef<str>) {
-    println!("{}", style(message.as_ref()));
+    println!("{}", STYLE_LOG.apply_to(message.as_ref()));
 }
-
-const STYLE_DEBUG: Style = Style::new().color256(248).force_styling(true);
 
 pub fn debug(message: impl AsRef<str>) {
     println!("{}", STYLE_DEBUG.apply_to(message.as_ref()));
 }
 
 pub fn warn(message: impl AsRef<str>) {
-    eprintln!("Warning: {}", style(message.as_ref()).yellow());
+    eprintln!("Warning: {}", STYLE_WARN.apply_to(message.as_ref()));
 }
 
 pub fn die(message: impl AsRef<str>) -> ! {
-    eprintln!("Fatal Error: {}", style(message.as_ref()).red());
+    eprintln!("Fatal Error: {}", STYLE_FATAL.apply_to(message.as_ref()));
     exit(1)
 }
 
@@ -74,6 +76,12 @@ impl Progress {
             resolve,
             download,
         }
+    }
+}
+
+impl Default for Progress {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
