@@ -33,6 +33,25 @@ If you wish to write your own, there is [documentation.](https://github.com/alus
 Actions may need to be taken during updates to certain files, both within usr, etc, and other misc paths.
 These actions are called Hooks and are triggered right before the usr tree is swapped, and can be used to modify usr, etc, and other misc paths.
 
+### Components
+
+Despite the goal of one immutable filesystem tree, it's not always possible.
+To support these cases without sacraficing immutability, we provide the ability to select **Components**.
+
+During commit creation, we read definitions (`/usr/share/alus/components`) from the staging `usr` tree, which describe available components, how they are built, and how they are installed/activated.
+
+#### Internal/External
+Both define where a component's tree is created from, but differ in where the tree is originally located.
+- **External** builds from outside the main tree, Useful for when multiple variants of a component cannot be built within the same tree.
+- **Internal** builds from within the main tree, making the paths optional.
+
+#### UniqueKey
+Useful for ensuring only one version/variant of something can be installed.
+For example, the NVIDIA driver cannot have multiple versions installed, for filesystem conflicts and practical reasons.
+
+#### Trigger
+Decides when a component should automatically be installed. 
+
 ## Credits
 
 ### Inspiration
