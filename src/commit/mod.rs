@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use std::{io, path::Path, path::PathBuf};
+use std::{path::Path, path::PathBuf};
 use tokio::fs;
 use treeup::{
     BlobRef, Tree,
@@ -7,7 +7,12 @@ use treeup::{
 };
 use utils::atomic_rename;
 
-use crate::{hooks::Hook, logging, repo::Repo};
+use crate::{
+    components::{CommittedComponent, Components},
+    hooks::Hook,
+    logging,
+    repo::Repo,
+};
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct Commit {
@@ -17,6 +22,8 @@ pub struct Commit {
     pub vmlinuz: BlobRef,
 
     parent_commit: Option<String>,
+
+    components: Vec<CommittedComponent>,
 }
 
 #[async_trait]
@@ -89,6 +96,15 @@ impl Commit {
         logging::debug("Deploying usr tree");
         usr_tree.deploy(&repo.treeup, &usr_staging_path).await?;
 
+        // Components
+        logging::debug("Deploying components");
+        for component in &self.components {
+            // TODO: Manual enable/disable
+            if component.trigger.check_trigger(&usr_staging_path).await? {
+                component.deploy(repo, &usr_staging_path).await?;
+            }
+        }
+
         // Run hooks
         logging::debug("Loading hooks...");
         let hooks = Hook::load_hooks(&usr_staging_path).await?;
@@ -115,11 +131,23 @@ impl Commit {
         initramfs_path: &Path,
         vmlinuz_path: &Path,
         parent_commit: Option<String>,
-    ) -> io::Result<Self> {
+    ) -> crate::Result<Self> {
         // initramfs/vmlinuz
         logging::debug("Creating blobs for initramfs and vmlinuz");
         let initramfs = BlobRef::create(&repo.treeup, initramfs_path).await?;
         let vmlinuz = BlobRef::create(&repo.treeup, vmlinuz_path).await?;
+
+        logging::debug("Creating components");
+        // Components
+        let mut components = Vec::new();
+        for (id, definition) in
+            Components::load_definitions(&usr_path.join("share/alus/components"))
+                .await?
+                .entries
+        {
+            let component = definition.commit(id, repo, usr_path).await?;
+            components.push(component);
+        }
 
         logging::debug("Creating usr tree");
         let usr_tree = Tree::create(&repo.treeup, usr_path).await?;
@@ -130,6 +158,7 @@ impl Commit {
             initramfs,
             vmlinuz,
             parent_commit,
+            components,
         };
 
         let raw = serde_json::to_string(&commit)?;
