@@ -113,14 +113,13 @@ impl ComponentDefinition {
         &self,
         id: String,
         repo: &Repo,
-        staging_usr_path: &Path,
+        usr_path: &Path,
     ) -> io::Result<CommittedComponent> {
         let mut trees = HashMap::new();
 
         // TODO: Find a way to exclude this from the eventually commited usr
         for internal in &self.internal {
-            let tree =
-                Tree::create(&repo.treeup, &staging_usr_path.join(internal.path.clone())).await?;
+            let tree = Tree::create(&repo.treeup, &usr_path.join(internal.path.clone())).await?;
             trees.insert(internal.path.to_path_buf(), tree.hash()?);
         }
 
@@ -141,11 +140,10 @@ impl ComponentDefinition {
 }
 
 impl CommittedComponent {
-    pub async fn deploy(&self, repo: &Repo, staging_usr_path: &Path) -> io::Result<()> {
+    pub async fn deploy(&self, repo: &Repo, usr_path: &Path) -> io::Result<()> {
         for (path, hash) in &self.trees {
             let tree = Tree::get(&repo.treeup, hash).await?;
-            tree.deploy(&repo.treeup, &staging_usr_path.join(path))
-                .await?;
+            tree.deploy(&repo.treeup, &usr_path.join(path)).await?;
         }
 
         Ok(())
