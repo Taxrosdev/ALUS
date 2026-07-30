@@ -40,7 +40,7 @@ pub struct BlobRef {
 
 impl BlobRef {
     /// Get the path on-disk of this Blob
-    pub async fn local_path(&self, repo: &Repo) -> io::Result<PathBuf> {
+    pub async fn local_path_with_parent(&self, repo: &Repo) -> io::Result<PathBuf> {
         let parent_path = repo.blobs_path.join(&self.hash[..2]);
         fs::create_dir_all(&parent_path).await?;
         Ok(parent_path.join(&self.hash[2..]))
@@ -50,13 +50,13 @@ impl BlobRef {
     ///
     /// Does not try to automatically create the parent directory.
     #[must_use]
-    pub fn parentless_local_path(&self, repo: &Repo) -> PathBuf {
+    pub fn local_path(&self, repo: &Repo) -> PathBuf {
         let parent_path = repo.blobs_path.join(&self.hash[..2]);
         parent_path.join(&self.hash[2..])
     }
 
     pub async fn exists(&self, repo: &Repo) -> io::Result<bool> {
-        let path = self.parentless_local_path(repo);
+        let path = self.local_path(repo);
 
         fs::try_exists(&path).await
     }
@@ -67,7 +67,7 @@ impl BlobRef {
         repo: &Repo,
         downloader: Arc<dyn Downloader>,
     ) -> crate::error::Result<()> {
-        let path = self.local_path(repo).await?;
+        let path = self.local_path_with_parent(repo).await?;
         let tmp_path = path.with_extension("tmp");
         let mut tmp_file = File::create(&tmp_path).await?;
 
@@ -105,8 +105,8 @@ impl BlobRef {
             return Ok(false);
         }
 
-        let old_path = self.parentless_local_path(old_repo);
-        let new_path = self.local_path(new_repo).await?;
+        let old_path = self.local_path(old_repo);
+        let new_path = self.local_path_with_parent(new_repo).await?;
 
         if fs::hard_link(&old_path, &new_path).await.is_err() {
             // Fallback to copying. Installers are commonly on removable media, and not on the same
@@ -135,7 +135,7 @@ impl Deployable for BlobRef {
             gid: permissions.gid,
             mode: permissions.mode,
         };
-        let blob_path = blob.local_path(repo).await?;
+        let blob_path = blob.local_path_with_parent(repo).await?;
 
         if !fs::try_exists(&blob_path).await? {
             fs::hard_link(path, blob_path).await?;
@@ -145,7 +145,7 @@ impl Deployable for BlobRef {
     }
 
     async fn deploy(&self, repo: &Repo, deploy_path: &Path) -> io::Result<()> {
-        let path = self.parentless_local_path(repo);
+        let path = self.local_path(repo);
         fs::hard_link(path, deploy_path).await?;
 
         Permissions::deploy(deploy_path.to_path_buf(), self.mode, self.uid, self.gid).await?;
