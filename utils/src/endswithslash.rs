@@ -19,23 +19,12 @@ impl From<EndsWithSlash> for String {
     }
 }
 
-impl AsRef<String> for EndsWithSlash {
-    fn as_ref(&self) -> &String {
-        &self.0
-    }
-}
-
 impl AsRef<str> for EndsWithSlash {
     fn as_ref(&self) -> &str {
         &self.0
     }
 }
 
-impl Borrow<String> for EndsWithSlash {
-    fn borrow(&self) -> &String {
-        &self.0
-    }
-}
 impl Borrow<str> for EndsWithSlash {
     fn borrow(&self) -> &str {
         &self.0
