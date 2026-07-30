@@ -78,7 +78,7 @@ impl SandboxInstance {
 
     pub fn run_sandboxed(self, exec: &str) -> crate::error::Result<()> {
         // 4 MB
-        static mut STACK: [u8; 4 * 1024 * 1024] = [0u8; 4 * 1024 * 1024];
+        let mut stack = vec![0u8; 4 * 1024 * 1024].into_boxed_slice();
         let flags = CloneFlags::CLONE_NEWNS
             | CloneFlags::CLONE_NEWIPC
             | CloneFlags::CLONE_NEWNET
@@ -91,7 +91,7 @@ impl SandboxInstance {
         });
 
         let pid =
-            unsafe { clone(entrypoint, &mut *addr_of_mut!(STACK), flags, Some(SIGCHLD)) }.unwrap();
+            unsafe { clone(entrypoint, &mut *addr_of_mut!(stack), flags, Some(SIGCHLD)) }.unwrap();
         let status = waitpid(pid, None).unwrap();
 
         match status {
