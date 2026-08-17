@@ -32,7 +32,7 @@ impl Branch {
         branch_name: String,
         downloader: Arc<impl Downloader>,
     ) -> crate::error::Result<Option<Self>> {
-        let remote = downloader.get_remote().await;
+        let remote = downloader.remote();
         let url = format!("{}branch/{}", remote, branch_name);
         let client = Client::new();
         let response = client.get(&url).send().await?;
