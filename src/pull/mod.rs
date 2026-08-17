@@ -172,8 +172,7 @@ impl TreePuller {
         };
 
         // Actually download
-        let downloader =
-            ProgressDownloader::from_reqwest_downloader(self.reqwest_downloader, downloaded);
+        let downloader = ProgressDownloader::from_downloader(self.reqwest_downloader, downloaded);
         blob.download(&self.repo.treeup, Arc::new(downloader))
             .await?;
 
