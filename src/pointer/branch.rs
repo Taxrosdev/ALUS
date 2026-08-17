@@ -1,7 +1,8 @@
 use reqwest::{Client, StatusCode};
 use std::{io, sync::Arc};
 use tokio::fs;
-use treeup::{downloader::Downloader, object::Object};
+use treeup::object::Object;
+use treeup_core::downloader::Downloader;
 
 use crate::{commit::Commit, repo::Repo};
 
@@ -29,7 +30,7 @@ impl Branch {
     pub async fn pull(
         repo: &Repo,
         branch_name: String,
-        downloader: Arc<dyn Downloader>,
+        downloader: Arc<impl Downloader>,
     ) -> crate::error::Result<Option<Self>> {
         let remote = downloader.get_remote().await;
         let url = format!("{}branch/{}", remote, branch_name);
@@ -72,7 +73,7 @@ impl Branch {
     pub async fn pull_commit(
         &self,
         repo: &Repo,
-        downloader: Arc<dyn Downloader>,
+        downloader: Arc<impl Downloader>,
     ) -> crate::error::Result<Commit> {
         // Download if doesn't exist.
         if !Commit::exists(&repo.treeup, &self.target).await? {

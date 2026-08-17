@@ -1,5 +1,6 @@
 use std::{io, sync::Arc};
-use treeup::{downloader::Downloader, object::Object};
+use treeup::object::Object;
+use treeup_core::downloader::Downloader;
 
 pub mod branch;
 pub use branch::Branch;
@@ -16,7 +17,7 @@ impl Pointer {
     pub async fn resolve_all(
         repo: &Repo,
         pointer: String,
-        downloader: Arc<dyn Downloader>,
+        downloader: Arc<impl Downloader>,
     ) -> crate::error::Result<Option<Pointer>> {
         if let Some(pointer) = Self::resolve_local(repo, pointer.clone()).await? {
             return Ok(Some(pointer));
@@ -39,7 +40,7 @@ impl Pointer {
 
     pub async fn resolve_remote(
         repo: &Repo,
-        downloader: Arc<dyn Downloader>,
+        downloader: Arc<impl Downloader>,
         pointer: String,
     ) -> crate::error::Result<Option<Pointer>> {
         if Commit::download(&repo.treeup, downloader.clone(), &pointer)
@@ -67,7 +68,7 @@ impl Pointer {
     pub async fn pull_commit(
         &self,
         repo: &Repo,
-        downloader: Arc<dyn Downloader>,
+        downloader: Arc<impl Downloader>,
     ) -> crate::error::Result<Commit> {
         Ok(match self {
             Pointer::Commit { hash } => Commit::get(&repo.treeup, hash).await?,

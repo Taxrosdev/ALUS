@@ -214,7 +214,7 @@ async fn resolve_pointer_local(repo: &Repo, pointer: String) -> io::Result<Commi
 async fn resolve_pointer_remote(
     repo: &Repo,
     pointer: String,
-    downloader: Arc<dyn Downloader>,
+    downloader: Arc<impl Downloader>,
 ) -> Result<Commit> {
     match Pointer::resolve_all(repo, pointer, downloader.clone()).await? {
         Some(pointer) => Ok(pointer.pull_commit(repo, downloader).await?),
