@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = [".", "utils", "treeup"]
+members = [".", "utils"]
 
 [package]
 name = "alus"
@@ -36,8 +36,6 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "fs", "rt-multi-thread"] }
-
-treeup = { path = "./treeup" }
 utils = { path = "./utils" }
 nix = { workspace = true, features = ["fs", "mount", "process", "sched"] }
 toml = "1.1.3"
