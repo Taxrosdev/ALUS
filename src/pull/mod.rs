@@ -8,7 +8,8 @@ use std::{
 };
 use tokio::{sync::Semaphore, time::sleep};
 use treeup::{
-    BlobRef, Tree,
+    Tree,
+    blob::BlobRef,
     downloader::{ProgressDownloader, ReqwestDownloader},
     object::Object,
 };

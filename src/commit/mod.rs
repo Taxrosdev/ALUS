@@ -2,7 +2,8 @@ use async_trait::async_trait;
 use std::{path::Path, path::PathBuf};
 use tokio::fs;
 use treeup::{
-    BlobRef, Tree,
+    Tree,
+    blob::BlobRef,
     object::{Dependencies, Deployable, Object},
 };
 use utils::atomic_rename;
