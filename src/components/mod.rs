@@ -119,12 +119,22 @@ impl ComponentDefinition {
 
         // TODO: Find a way to exclude this from the eventually commited usr
         for internal in &self.internal {
-            let tree = Tree::create(&repo.treeup, &usr_path.join(internal.path.clone())).await?;
+            let tree = Tree::create(
+                repo.object_cas.clone(),
+                &repo.blobs_path,
+                &usr_path.join(internal.path.clone()),
+            )
+            .await?;
             trees.insert(internal.path.to_path_buf(), tree.hash()?);
         }
 
         for external in &self.external {
-            let tree = Tree::create(&repo.treeup, &external.source_path).await?;
+            let tree = Tree::create(
+                repo.object_cas.clone(),
+                &repo.blobs_path,
+                &external.source_path,
+            )
+            .await?;
             trees.insert(external.inserted_path.to_path_buf(), tree.hash()?);
         }
 
@@ -140,10 +150,15 @@ impl ComponentDefinition {
 }
 
 impl CommittedComponent {
-    pub async fn deploy(&self, repo: &Repo, usr_path: &Path) -> io::Result<()> {
+    pub async fn deploy(&self, repo: &Repo, usr_path: &Path) -> crate::Result<()> {
         for (path, hash) in &self.trees {
-            let tree = Tree::get(&repo.treeup, hash).await?;
-            tree.deploy(&repo.treeup, &usr_path.join(path)).await?;
+            let tree = Tree::get(&*repo.object_cas, &hex::decode(hash)?).await?;
+            tree.deploy(
+                repo.object_cas.clone(),
+                &repo.blobs_path,
+                &usr_path.join(path),
+            )
+            .await?;
         }
 
         Ok(())

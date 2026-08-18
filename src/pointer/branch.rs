@@ -4,7 +4,7 @@ use tokio::fs;
 use treeup::object::Object;
 use treeup_core::downloader::Downloader;
 
-use crate::{commit::Commit, repo::Repo};
+use crate::{Result, commit::Commit, repo::Repo};
 
 #[derive(Debug, Clone)]
 pub struct Branch {
@@ -63,9 +63,9 @@ impl Branch {
         Ok(())
     }
 
-    pub async fn get_commit(&self, repo: &Repo) -> io::Result<Commit> {
+    pub async fn get_commit(&self, repo: &Repo) -> Result<Commit> {
         // TODO: Handle dangling commits better
-        Commit::get(&repo.treeup, &self.target).await
+        Ok(Commit::get(&*repo.object_cas, &hex::decode(&self.target)?).await?)
     }
 
     /// Exactly the same as `Self::get_commit`, except will pull the commit if it doesn't already
@@ -74,12 +74,14 @@ impl Branch {
         &self,
         repo: &Repo,
         downloader: Arc<impl Downloader>,
-    ) -> crate::error::Result<Commit> {
+    ) -> Result<Commit> {
+        let hash = hex::decode(&self.target)?;
+
         // Download if doesn't exist.
-        if !Commit::exists(&repo.treeup, &self.target).await? {
-            Commit::download(&repo.treeup, downloader, &self.target).await?;
+        if !Commit::exists(&*repo.object_cas, &hash).await? {
+            Commit::download(&*repo.object_cas, downloader, &hash).await?;
         }
 
-        Ok(Commit::get(&repo.treeup, &self.target).await?)
+        Ok(Commit::get(&*repo.object_cas, &hash).await?)
     }
 }

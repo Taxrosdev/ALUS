@@ -13,6 +13,7 @@ use treeup::{
     downloader::{ProgressDownloader, ReqwestDownloader},
     object::Object,
 };
+use treeup_core::object_cas::ObjectCAS;
 
 use crate::{commit::Commit, logging::Progress, repo::Repo};
 
@@ -53,13 +54,13 @@ impl TreePuller {
         let mut tasks = Vec::new();
 
         if !metadata_only {
-            if !commit.initramfs.exists(&self.repo.treeup).await? {
+            if !commit.initramfs.exists(&self.repo.blobs_path).await? {
                 tasks.push(tokio::spawn(Self::download_blob(
                     self.clone(),
                     commit.initramfs.clone(),
                 )))
             }
-            if !commit.vmlinuz.exists(&self.repo.treeup).await? {
+            if !commit.vmlinuz.exists(&self.repo.blobs_path).await? {
                 tasks.push(tokio::spawn(Self::download_blob(
                     self.clone(),
                     commit.vmlinuz.clone(),
@@ -67,11 +68,10 @@ impl TreePuller {
             }
         }
 
-        tasks.push(tokio::spawn(Self::download_tree(
-            self.clone(),
-            commit.usr_tree,
-            metadata_only,
-        )));
+        let usr_hash = hex::decode(commit.usr_tree)?;
+        tasks.push(tokio::spawn(async move {
+            Self::download_tree(self.clone(), &usr_hash, metadata_only).await
+        }));
 
         for task in tasks {
             task.await.expect("tokio join error")?;
@@ -83,24 +83,25 @@ impl TreePuller {
     #[async_recursion]
     pub async fn download_tree(
         self,
-        object_hash: String,
+        object_hash: &[u8],
         metadata_only: bool,
     ) -> crate::error::Result<()> {
-        let tree = if Tree::exists(&self.repo.treeup, &object_hash).await? {
-            Tree::get(&self.repo.treeup, &object_hash).await?
+        let tree = if Tree::exists(&*self.repo.object_cas, &object_hash).await? {
+            Tree::get(&*self.repo.object_cas, &object_hash).await?
         } else {
             // Download THIS tree
             let _limit = self.resolve_limit.acquire().await.unwrap();
 
+            let clone_from = self.clone_from.clone();
             clone_or_download_tree(
-                &self.repo.treeup,
-                self.clone_from.clone(),
+                &*self.repo.object_cas,
+                clone_from.map(|repo| repo.object_cas.clone()),
                 &object_hash,
                 self.reqwest_downloader.clone(),
             )
             .await?;
 
-            Tree::get(&self.repo.treeup, &object_hash).await?
+            Tree::get(&*self.repo.object_cas, &object_hash).await?
         };
         self.progress.resolve.inc(1);
 
@@ -109,7 +110,7 @@ impl TreePuller {
         if !metadata_only {
             // Download dependent file
             for file in tree.files {
-                if !file.blob.exists(&self.repo.treeup).await? {
+                if !file.blob.exists(&self.repo.blobs_path).await? {
                     tasks.push(tokio::spawn(Self::download_blob(self.clone(), file.blob)))
                 };
             }
@@ -119,11 +120,11 @@ impl TreePuller {
 
         // Download dependent subtrees
         for subtree in tree.subtrees {
-            tasks.push(tokio::spawn(Self::download_tree(
-                self.clone(),
-                subtree.hash,
-                metadata_only,
-            )));
+            let tree_hash = hex::decode(subtree.hash)?;
+            let tree = self.clone();
+            tasks.push(tokio::spawn(async move {
+                Self::download_tree(tree, &tree_hash, metadata_only).await
+            }));
         }
 
         for task in tasks {
@@ -142,8 +143,10 @@ impl TreePuller {
         let done = Arc::new(AtomicBool::new(false));
 
         // Try clone, if not continue
-        if let Some(old_repo) = self.clone_from {
-            let success = blob.try_clone(&old_repo.treeup, &self.repo.treeup).await?;
+        if let Some(old_cas) = self.clone_from {
+            let success = blob
+                .try_clone(&old_cas.blobs_path, &self.repo.blobs_path)
+                .await?;
 
             if success {
                 self.progress.download.inc(blob.size);
@@ -173,7 +176,7 @@ impl TreePuller {
 
         // Actually download
         let downloader = ProgressDownloader::from_downloader(self.reqwest_downloader, downloaded);
-        blob.download(&self.repo.treeup, Arc::new(downloader))
+        blob.download(&self.repo.blobs_path, Arc::new(downloader))
             .await?;
 
         done.store(true, Ordering::Relaxed);
@@ -185,21 +188,21 @@ impl TreePuller {
 
 /// Tries to clone, or downloads if cannot clone.
 async fn clone_or_download_tree(
-    repo: &treeup::Repo,
-    old_repo: Option<Arc<Repo>>,
-    object_hash: &str,
+    cas: &impl ObjectCAS,
+    old_cas: Option<Arc<impl ObjectCAS>>,
+    object_hash: &[u8],
     downloader: Arc<ReqwestDownloader>,
 ) -> crate::error::Result<()> {
     // Try and clone the existing tree
-    if let Some(old_repo) = &old_repo {
-        let clone_success = Tree::try_clone(&old_repo.treeup, repo, object_hash).await?;
+    if let Some(old_cas) = &old_cas {
+        let clone_success = Tree::try_clone(&**old_cas, cas, object_hash).await?;
 
         if clone_success {
             return Ok(());
         }
     };
 
-    Tree::download(repo, downloader, object_hash).await?;
+    Tree::download(cas, downloader, object_hash).await?;
 
     Ok(())
 }

@@ -6,6 +6,7 @@ use treeup::{
     blob::BlobRef,
     object::{Dependencies, Deployable, Object},
 };
+use treeup_core::object_cas::ObjectCAS;
 use utils::atomic_rename;
 
 use crate::{
@@ -64,10 +65,14 @@ impl Commit {
         // Deploy initramfs/vmlinuz
         logging::log("Deploying new initramfs/vmlinuz...");
         if !fs::try_exists(initramfs_path).await? {
-            self.initramfs.deploy(&repo.treeup, initramfs_path).await?
+            self.initramfs
+                .deploy(repo.object_cas.clone(), &repo.blobs_path, initramfs_path)
+                .await?
         };
         if !fs::try_exists(vmlinuz_path).await? {
-            self.vmlinuz.deploy(&repo.treeup, vmlinuz_path).await?
+            self.vmlinuz
+                .deploy(repo.object_cas.clone(), &repo.blobs_path, vmlinuz_path)
+                .await?
         };
 
         Ok(())
@@ -93,9 +98,11 @@ impl Commit {
         // Deploy to staging
         logging::log("Preparing staging usr...");
         logging::debug("Getting usr tree");
-        let usr_tree = Tree::get(&repo.treeup, &self.usr_tree).await?;
+        let usr_tree = Tree::get(&*repo.object_cas, &hex::decode(&self.usr_tree)?).await?;
         logging::debug("Deploying usr tree");
-        usr_tree.deploy(&repo.treeup, &usr_staging_path).await?;
+        usr_tree
+            .deploy(repo.object_cas.clone(), &repo.blobs_path, &usr_staging_path)
+            .await?;
 
         // Components
         logging::debug("Deploying components");
@@ -135,8 +142,10 @@ impl Commit {
     ) -> crate::Result<Self> {
         // initramfs/vmlinuz
         logging::debug("Creating blobs for initramfs and vmlinuz");
-        let initramfs = BlobRef::create(&repo.treeup, initramfs_path).await?;
-        let vmlinuz = BlobRef::create(&repo.treeup, vmlinuz_path).await?;
+        let initramfs =
+            BlobRef::create(repo.object_cas.clone(), &repo.blobs_path, initramfs_path).await?;
+        let vmlinuz =
+            BlobRef::create(repo.object_cas.clone(), &repo.blobs_path, vmlinuz_path).await?;
 
         logging::debug("Creating components");
         // Components
@@ -151,7 +160,7 @@ impl Commit {
         }
 
         logging::debug("Creating usr tree");
-        let usr_tree = Tree::create(&repo.treeup, usr_path).await?;
+        let usr_tree = Tree::create(repo.object_cas.clone(), &repo.blobs_path, usr_path).await?;
         let usr_hash = usr_tree.hash()?;
 
         let commit = Commit {
@@ -163,9 +172,9 @@ impl Commit {
         };
 
         let raw = serde_json::to_string(&commit)?;
-        let hash = blake3::hash(raw.as_bytes()).to_string();
-        let path = Self::local_path_with_parent(&repo.treeup, &hash).await?;
-        fs::write(path, raw).await?;
+        let hash = blake3::hash(raw.as_bytes());
+
+        repo.object_cas.put(hash.as_slice(), &raw).await?;
 
         Ok(commit)
     }
