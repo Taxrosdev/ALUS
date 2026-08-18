@@ -86,8 +86,8 @@ impl TreePuller {
         object_hash: &[u8],
         metadata_only: bool,
     ) -> crate::error::Result<()> {
-        let tree = if Tree::exists(&*self.repo.object_cas, &object_hash).await? {
-            Tree::get(&*self.repo.object_cas, &object_hash).await?
+        let tree = if Tree::exists(&*self.repo.object_cas, object_hash).await? {
+            Tree::get(&*self.repo.object_cas, object_hash).await?
         } else {
             // Download THIS tree
             let _limit = self.resolve_limit.acquire().await.unwrap();
@@ -96,12 +96,12 @@ impl TreePuller {
             clone_or_download_tree(
                 &*self.repo.object_cas,
                 clone_from.map(|repo| repo.object_cas.clone()),
-                &object_hash,
+                object_hash,
                 self.reqwest_downloader.clone(),
             )
             .await?;
 
-            Tree::get(&*self.repo.object_cas, &object_hash).await?
+            Tree::get(&*self.repo.object_cas, object_hash).await?
         };
         self.progress.resolve.inc(1);
 
