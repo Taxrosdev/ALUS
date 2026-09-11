@@ -1816,7 +1816,7 @@ dependencies = [
 [[package]]
 name = "treeup"
 version = "0.1.0"
-source = "git+https://github.com/taxrosdev/treeup#9100f78b7bce1bf41a82b48a8186121ff36f99ea"
+source = "git+https://github.com/taxrosdev/treeup#df31e3e2e328d91c94e3b0b87edb5c7473af3b77"
 dependencies = [
  "blake3",
  "bytes",
@@ -1837,7 +1837,7 @@ dependencies = [
 [[package]]
 name = "treeup-core"
 version = "0.1.0"
-source = "git+https://github.com/taxrosdev/treeup#9100f78b7bce1bf41a82b48a8186121ff36f99ea"
+source = "git+https://github.com/taxrosdev/treeup#df31e3e2e328d91c94e3b0b87edb5c7473af3b77"
 dependencies = [
  "bytes",
  "futures-core",
