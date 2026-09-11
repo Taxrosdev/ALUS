@@ -7,12 +7,10 @@ use alus::{
     repo::Repo,
 };
 use clap::{Parser, Subcommand};
-use std::{io, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 use tokio::fs;
-use treeup::{
-    downloader::{Downloader, ReqwestDownloader},
-    object::Object,
-};
+use treeup::{downloader::ReqwestDownloader, object::Object};
+use treeup_core::downloader::Downloader;
 use utils::EndsWithSlash;
 
 #[derive(Parser)]
@@ -80,7 +78,7 @@ async fn main() -> Result<()> {
             let downloader = Arc::new(ReqwestDownloader::new(
                 &(remote.to_string() + "objects"),
                 &(remote.to_string() + "blobs"),
-                remote.clone(),
+                remote.clone().into(),
             ));
 
             // Get the latest commit from current
@@ -144,7 +142,7 @@ async fn main() -> Result<()> {
             let downloader = Arc::new(ReqwestDownloader::new(
                 &(remote.to_string() + "objects"),
                 &(remote.to_string() + "blobs"),
-                remote.clone(),
+                remote.into(),
             ));
 
             let commit = resolve_pointer_remote(&repo, pointer, downloader.clone()).await?;
@@ -197,14 +195,15 @@ async fn resolve_pointer(repo: &Repo, pointer: String) -> Result<Commit> {
             let downloader = Arc::new(ReqwestDownloader::new(
                 &(remote.to_string() + "objects"),
                 &(remote.to_string() + "blobs"),
-                remote.clone(),
+                remote.clone().into(),
             ));
             resolve_pointer_remote(repo, pointer, downloader).await?
         }
         None => resolve_pointer_local(repo, pointer).await?,
     })
 }
-async fn resolve_pointer_local(repo: &Repo, pointer: String) -> io::Result<Commit> {
+
+async fn resolve_pointer_local(repo: &Repo, pointer: String) -> Result<Commit> {
     match Pointer::resolve_local(repo, pointer).await? {
         Some(pointer) => Ok(pointer.get_commit(repo).await?),
         None => logging::die("Could not find pointer."),
@@ -214,7 +213,7 @@ async fn resolve_pointer_local(repo: &Repo, pointer: String) -> io::Result<Commi
 async fn resolve_pointer_remote(
     repo: &Repo,
     pointer: String,
-    downloader: Arc<dyn Downloader>,
+    downloader: Arc<impl Downloader>,
 ) -> Result<Commit> {
     match Pointer::resolve_all(repo, pointer, downloader.clone()).await? {
         Some(pointer) => Ok(pointer.pull_commit(repo, downloader).await?),
