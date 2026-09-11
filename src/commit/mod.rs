@@ -101,7 +101,7 @@ impl Commit {
         let usr_tree = Tree::get(&*repo.object_cas, &hex::decode(&self.usr_tree)?).await?;
         logging::debug("Deploying usr tree");
         usr_tree
-            .deploy(repo.object_cas.clone(), &repo.blobs_path, &usr_staging_path)
+            .deploy_recursive(repo.object_cas.clone(), &repo.blobs_path, &usr_staging_path)
             .await?;
 
         // Components
@@ -116,6 +116,7 @@ impl Commit {
         // Run hooks
         logging::debug("Loading hooks...");
         let hooks = Hook::load_hooks(&usr_staging_path).await?;
+        logging::debug("Loaded hooks");
         for hook in hooks {
             logging::log(&hook.description);
             hook.run(usr_staging_path.clone(), sysroot).await?;

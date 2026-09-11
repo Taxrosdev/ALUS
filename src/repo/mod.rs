@@ -28,7 +28,7 @@ impl Repo {
 
         Ok(Repo {
             object_cas: Arc::new(BasicFS::create(local_path.join("objects")).await?),
-            blobs_path: local_path.join("objects"),
+            blobs_path: local_path.join("blobs"),
             config,
             local_path,
         })

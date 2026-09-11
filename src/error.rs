@@ -1,7 +1,7 @@
 #[derive(thiserror::Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
-    #[error("io error")]
+    #[error("generic io error")]
     Io(#[from] std::io::Error),
     #[error("json serialization error")]
     Json(#[from] serde_json::Error),
