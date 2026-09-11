@@ -58,9 +58,3 @@ Decides when a component should automatically be installed.
 
 This project is heavily inspired by systemds immutable tools, and AerynOS.
 Both projects mentioned above are completely fine and working, they may fit your usecase better than ALUS, we simply had a different usecase.
-
-## No AI/LLM Generated Commits
-
-Unfortunately we cannot assert their quality, or the reviewers quality, and quite frankly theres a large portion of discourse surrounding them that we do not want to associate with.
-
-If you can author code with a LLM and we don't notice, you're probably fine using AI within the context of this project.
