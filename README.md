@@ -56,5 +56,5 @@ Decides when a component should automatically be installed.
 
 ### Inspiration
 
-This project is heavily inspired by systemds immutable tools, and AerynOS.
-Both projects mentioned above are completely fine and working, they may fit your usecase better than ALUS, we simply had a different usecase.
+This project is heavily inspired by systemd and AerynOS's atomic tooling.
+Both projects mentioned above are completely functional and working, they may fit your usecase better than ALUS, we simply had a different usecase.
