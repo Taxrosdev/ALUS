@@ -5,10 +5,7 @@ use std::{
     process::Command,
 };
 use tokio::fs;
-use treeup::{
-    Tree,
-    object::{Deployable, Object},
-};
+use treeup::{Tree, object::Object};
 
 use crate::{logging, repo::Repo};
 

@@ -1,11 +1,6 @@
-use async_trait::async_trait;
 use std::{path::Path, path::PathBuf};
 use tokio::fs;
-use treeup::{
-    Tree,
-    blob::BlobRef,
-    object::{Dependencies, Deployable, Object},
-};
+use treeup::{Tree, blob::BlobRef, object::Object};
 use treeup_core::object_cas::ObjectCAS;
 use utils::atomic_rename;
 
@@ -28,15 +23,7 @@ pub struct Commit {
     components: Vec<CommittedComponent>,
 }
 
-#[async_trait]
-impl Object for Commit {
-    fn get_dependencies(&self) -> Dependencies<'_> {
-        Dependencies {
-            objects: vec![self.usr_tree.as_str()],
-            blobs: vec![&self.initramfs, &self.vmlinuz],
-        }
-    }
-}
+impl Object for Commit {}
 
 impl Commit {
     pub async fn deploy(
