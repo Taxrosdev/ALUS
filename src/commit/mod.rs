@@ -53,13 +53,11 @@ impl Commit {
         logging::log("Deploying new initramfs/vmlinuz...");
         if !fs::try_exists(initramfs_path).await? {
             self.initramfs
-                .deploy(repo.object_cas.clone(), &repo.blobs_path, initramfs_path)
+                .deploy(&repo.blobs_path, initramfs_path)
                 .await?
         };
         if !fs::try_exists(vmlinuz_path).await? {
-            self.vmlinuz
-                .deploy(repo.object_cas.clone(), &repo.blobs_path, vmlinuz_path)
-                .await?
+            self.vmlinuz.deploy(&repo.blobs_path, vmlinuz_path).await?
         };
 
         Ok(())
@@ -130,10 +128,8 @@ impl Commit {
     ) -> crate::Result<Self> {
         // initramfs/vmlinuz
         logging::debug("Creating blobs for initramfs and vmlinuz");
-        let initramfs =
-            BlobRef::create(repo.object_cas.clone(), &repo.blobs_path, initramfs_path).await?;
-        let vmlinuz =
-            BlobRef::create(repo.object_cas.clone(), &repo.blobs_path, vmlinuz_path).await?;
+        let initramfs = BlobRef::create(&repo.blobs_path, initramfs_path).await?;
+        let vmlinuz = BlobRef::create(&repo.blobs_path, vmlinuz_path).await?;
 
         logging::debug("Creating components");
         // Components
@@ -148,7 +144,9 @@ impl Commit {
         }
 
         logging::debug("Creating usr tree");
-        let usr_tree = Tree::create(repo.object_cas.clone(), &repo.blobs_path, usr_path).await?;
+        let usr_tree = Tree::create(repo.object_cas.clone(), &repo.blobs_path, usr_path)
+            .await
+            .unwrap();
         let usr_hash = usr_tree.hash()?;
 
         let commit = Commit {

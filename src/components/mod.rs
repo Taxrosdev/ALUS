@@ -150,12 +150,7 @@ impl CommittedComponent {
     pub async fn deploy(&self, repo: &Repo, usr_path: &Path) -> crate::Result<()> {
         for (path, hash) in &self.trees {
             let tree = Tree::get(&*repo.object_cas, &hex::decode(hash)?).await?;
-            tree.deploy(
-                repo.object_cas.clone(),
-                &repo.blobs_path,
-                &usr_path.join(path),
-            )
-            .await?;
+            tree.deploy(&repo.blobs_path, &usr_path.join(path)).await?;
         }
 
         Ok(())
