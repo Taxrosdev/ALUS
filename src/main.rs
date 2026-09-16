@@ -1,9 +1,9 @@
 use alus::{
     Result,
     commit::Commit,
-    logging::{self, Progress},
+    logging,
     pointer::{Branch, Pointer},
-    pull::TreePuller,
+    pull::Puller,
     repo::Repo,
 };
 use clap::{Parser, Subcommand};
@@ -88,8 +88,7 @@ async fn main() -> Result<()> {
             let commit_hash = commit.hash()?;
 
             // Pull
-            let tree_puller =
-                TreePuller::new(Arc::new(repo.clone()), downloader, Progress::new(), None);
+            let tree_puller = Puller::new(Arc::new(repo.clone()), downloader, None);
             tree_puller.download_commit(commit.clone(), false).await?;
 
             // Switch/Checkout
@@ -147,8 +146,7 @@ async fn main() -> Result<()> {
 
             let commit = resolve_pointer_remote(&repo, pointer, downloader.clone()).await?;
 
-            let tree_puller =
-                TreePuller::new(Arc::new(repo), downloader, Progress::new(), clone_from);
+            let tree_puller = Puller::new(Arc::new(repo), downloader, clone_from);
 
             tree_puller.download_commit(commit, false).await?;
         }

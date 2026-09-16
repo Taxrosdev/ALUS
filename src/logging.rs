@@ -41,9 +41,8 @@ pub fn hook(output: &Output) {
 
 #[derive(Clone)]
 pub struct Progress {
-    _multi_progress: MultiProgress,
-    pub resolve: ProgressBar,
-    pub download: ProgressBar,
+    pub multi_progress: MultiProgress,
+    resolve: ProgressBar,
 }
 
 impl Progress {
@@ -52,30 +51,21 @@ impl Progress {
         let interval = Duration::from_millis(150);
 
         // Resolve
-        let resolve = ProgressBar::new(1).with_message("Resolving...").with_style(
-            ProgressStyle::with_template("{spinner:.green} {msg} {pos}/{len}").unwrap(),
-        );
+        let resolve = ProgressBar::new(1)
+            .with_message("Resolving metadata")
+            .with_style(ProgressStyle::with_template("{spinner:.green} {msg}").unwrap());
         resolve.enable_steady_tick(interval);
         mp.add(resolve.clone());
 
-        // Download
-        let download = ProgressBar::new(1)
-                    .with_message("Downloading...")
-                    .with_style(
-                        ProgressStyle::with_template(
-                            "{spinner:.cyan} {msg} {bytes}/{total_bytes} {bar:30.cyan/blue} [{bytes_per_sec}] {eta}",
-                        )
-                        .expect("Progress bar error")
-                        .progress_chars("█▉▊▋▌▍▎▏ "),
-                    );
-        download.enable_steady_tick(interval);
-        mp.add(download.clone());
-
         Self {
-            _multi_progress: mp,
+            multi_progress: mp,
             resolve,
-            download,
         }
+    }
+
+    pub fn finish_resolving(&self) {
+        self.resolve.finish_with_message("Resolved Metadata");
+        self.resolve.disable_steady_tick();
     }
 }
 
@@ -88,6 +78,5 @@ impl Default for Progress {
 impl Drop for Progress {
     fn drop(&mut self) {
         self.resolve.finish();
-        self.download.finish();
     }
 }

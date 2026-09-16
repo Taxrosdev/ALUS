@@ -1,8 +1,11 @@
 use async_recursion::async_recursion;
+use futures_util::{StreamExt, TryStreamExt, stream};
+use indicatif::{ProgressBar, ProgressStyle};
 use std::{
+    collections::HashSet,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::{AtomicU64, Ordering},
     },
     time::Duration,
 };
@@ -18,31 +21,22 @@ use treeup_core::object_cas::ObjectCAS;
 use crate::{commit::Commit, logging::Progress, repo::Repo};
 
 #[derive(Clone)]
-pub struct TreePuller {
+pub struct Puller {
     repo: Arc<Repo>,
-    resolve_limit: Arc<Semaphore>,
-    blob_limit: Arc<Semaphore>,
-    reqwest_downloader: Arc<ReqwestDownloader>,
-
-    progress: Progress,
     clone_from: Option<Arc<Repo>>,
+    reqwest_downloader: Arc<ReqwestDownloader>,
 }
 
-impl TreePuller {
+impl Puller {
     pub fn new(
         repo: Arc<Repo>,
         reqwest_downloader: Arc<ReqwestDownloader>,
-        progress: Progress,
         clone_from: Option<Arc<Repo>>,
     ) -> Self {
-        Self {
-            repo: repo.clone(),
-            reqwest_downloader,
-            resolve_limit: Arc::new(Semaphore::new(repo.config.resolve_limit() as usize)),
-            blob_limit: Arc::new(Semaphore::new(repo.config.download_limit() as usize)),
-
-            progress,
+        Puller {
+            repo,
             clone_from,
+            reqwest_downloader,
         }
     }
 
@@ -51,47 +45,92 @@ impl TreePuller {
         commit: Commit,
         metadata_only: bool,
     ) -> crate::error::Result<()> {
-        let mut tasks = Vec::new();
+        let mut blobs = Vec::new();
+
+        // Progress Bars
+        let progress = Progress::new();
 
         if !metadata_only {
             if !commit.initramfs.exists(&self.repo.blobs_path).await? {
-                tasks.push(tokio::spawn(Self::download_blob(
-                    self.clone(),
-                    commit.initramfs.clone(),
-                )))
+                blobs.push(commit.initramfs.clone())
             }
             if !commit.vmlinuz.exists(&self.repo.blobs_path).await? {
-                tasks.push(tokio::spawn(Self::download_blob(
-                    self.clone(),
-                    commit.vmlinuz.clone(),
-                )))
+                blobs.push(commit.vmlinuz.clone())
             }
         }
 
         let usr_hash = hex::decode(commit.usr_tree)?;
-        tasks.push(tokio::spawn(async move {
-            Self::download_tree(self.clone(), &usr_hash, metadata_only).await
-        }));
+        blobs.extend(
+            Self::download_tree_metadata_recursively(
+                self.clone(),
+                usr_hash,
+                Arc::new(Semaphore::new(self.repo.config.resolve_limit() as usize)),
+            )
+            .await?,
+        );
+        progress.finish_resolving();
 
-        for task in tasks {
-            task.await.expect("tokio join error")?;
+        // Download blobs
+        if !metadata_only {
+            let blobs_path = self.repo.blobs_path.clone();
+            let missing_blobs = stream::iter(blobs)
+                .map(async |blob| (blob.clone(), blob.exists(&blobs_path).await))
+                .buffer_unordered(32) // Not really tuneable
+                .filter_map(async |(blob, exists)| match exists {
+                    Ok(true) => None,
+                    Ok(false) => Some(Ok(blob)),
+                    Err(e) => Some(Err(e)),
+                })
+                .try_collect::<Vec<BlobRef>>()
+                .await?;
+
+            // Download ProgressBar
+            let total_size: u64 = missing_blobs.iter().map(|blob| blob.size).sum();
+            let download_progress = ProgressBar::new(total_size)
+                    .with_message("Downloading...")
+                    .with_style(
+                        ProgressStyle::with_template(
+                            "{spinner:.cyan} {msg} {bytes}/{total_bytes} {bar:30.cyan/blue} [{bytes_per_sec}] {eta}",
+                        )
+                        .expect("Progress bar error")
+                    );
+            download_progress.set_position(0);
+            progress.multi_progress.add(download_progress.clone());
+
+            let downloaded = Arc::new(AtomicU64::new(0));
+            let download_poll = {
+                let downloaded = downloaded.clone();
+                let download_progress = download_progress.clone();
+                tokio::spawn(async move {
+                    let duration = Duration::from_millis(10);
+                    let downloaded = downloaded;
+                    loop {
+                        sleep(duration).await;
+                        let downloaded_amt = downloaded.load(std::sync::atomic::Ordering::Relaxed);
+                        download_progress.set_position(downloaded_amt);
+                    }
+                })
+            };
+
+            stream::iter(missing_blobs)
+                .map(|blob| Self::download_blob(self.clone(), blob, downloaded.clone()))
+                .buffer_unordered(self.repo.config.download_limit() as usize)
+                .try_collect::<Vec<_>>()
+                .await?;
+
+            download_poll.abort();
+            let _ = download_poll.await;
+            download_progress.finish_with_message("Downloaded");
         }
 
         Ok(())
     }
 
-    #[async_recursion]
-    pub async fn download_tree(
-        self,
-        object_hash: &[u8],
-        metadata_only: bool,
-    ) -> crate::error::Result<()> {
-        let tree = if Tree::exists(&*self.repo.object_cas, object_hash).await? {
-            Tree::get(&*self.repo.object_cas, object_hash).await?
+    async fn download_tree(&self, object_hash: &[u8]) -> crate::error::Result<Tree> {
+        if Tree::exists(&*self.repo.object_cas, object_hash).await? {
+            Ok(Tree::get(&*self.repo.object_cas, object_hash).await?)
         } else {
             // Download THIS tree
-            let _limit = self.resolve_limit.acquire().await.unwrap();
-
             let clone_from = self.clone_from.clone();
             clone_or_download_tree(
                 &*self.repo.object_cas,
@@ -101,86 +140,67 @@ impl TreePuller {
             )
             .await?;
 
-            Tree::get(&*self.repo.object_cas, object_hash).await?
-        };
-        self.progress.resolve.inc(1);
-
-        let mut tasks = Vec::new();
-
-        if !metadata_only {
-            // Download dependent file
-            for file in tree.files {
-                if !file.blob.exists(&self.repo.blobs_path).await? {
-                    tasks.push(tokio::spawn(Self::download_blob(self.clone(), file.blob)))
-                };
-            }
+            Ok(Tree::get(&*self.repo.object_cas, object_hash).await?)
         }
+    }
 
-        self.progress.resolve.inc_length(tree.subtrees.len() as u64);
+    #[async_recursion]
+    pub async fn download_tree_metadata_recursively(
+        self,
+        object_hash: Vec<u8>,
+        semaphore: Arc<Semaphore>,
+    ) -> crate::error::Result<HashSet<BlobRef>> {
+        let permit = semaphore.acquire().await.unwrap();
+        let tree = self.download_tree(&object_hash).await?;
+        drop(permit);
+
+        let mut blobs = tree
+            .files
+            .iter()
+            .map(|f| f.blob.clone())
+            .collect::<HashSet<_>>();
 
         // Download dependent subtrees
+        let mut tasks = Vec::new();
         for subtree in tree.subtrees {
             let tree_hash = hex::decode(subtree.hash)?;
-            let tree = self.clone();
-            tasks.push(tokio::spawn(async move {
-                Self::download_tree(tree, &tree_hash, metadata_only).await
-            }));
+            let semaphore = semaphore.clone();
+            let puller = self.clone();
+            tasks.push(tokio::spawn(Self::download_tree_metadata_recursively(
+                puller.clone(),
+                tree_hash,
+                semaphore.clone(),
+            )));
         }
 
         for task in tasks {
-            task.await.expect("tokio join error")?;
+            let new_blobs = task.await.expect("tokio join error")?;
+            blobs.extend(new_blobs)
         }
 
-        Ok(())
+        Ok(blobs)
     }
 
-    async fn download_blob(self, blob: BlobRef) -> crate::error::Result<()> {
-        self.progress.download.inc_length(blob.size);
-
-        let _permit = self.blob_limit.acquire().await.unwrap();
-
-        let downloaded = Arc::new(AtomicU64::new(0));
-        let done = Arc::new(AtomicBool::new(false));
-
+    async fn download_blob(
+        self,
+        blob: BlobRef,
+        downloaded: Arc<AtomicU64>,
+    ) -> crate::error::Result<()> {
         // Try clone, if not continue
-        if let Some(old_cas) = self.clone_from {
-            let success = blob
+        if let Some(old_cas) = self.clone_from.clone()
+            && blob
                 .try_clone(&old_cas.blobs_path, &self.repo.blobs_path)
+                .await
+                .is_ok()
+        {
+            downloaded.fetch_add(blob.size, Ordering::Relaxed);
+        } else {
+            // Actually download
+            let downloader =
+                ProgressDownloader::from_downloader(self.reqwest_downloader.clone(), downloaded);
+            blob.download(&self.repo.blobs_path, Arc::new(downloader))
                 .await?;
-
-            if success {
-                self.progress.download.inc(blob.size);
-                return Ok(());
-            }
         }
-
-        let poll_handle = {
-            let pb = self.progress.download.clone();
-            let downloaded = downloaded.clone();
-            let done = done.clone();
-            tokio::spawn(async move {
-                let dur = Duration::from_millis(100);
-                let mut prev = 0u64;
-                while !done.load(Ordering::Relaxed) {
-                    let now = downloaded.load(Ordering::Relaxed);
-                    let delta = now.saturating_sub(prev);
-                    pb.inc(delta);
-                    prev = now;
-                    sleep(dur).await;
-                }
-                let now = downloaded.load(Ordering::Relaxed);
-                let delta = now.saturating_sub(prev);
-                pb.inc(delta);
-            })
-        };
-
-        // Actually download
-        let downloader = ProgressDownloader::from_downloader(self.reqwest_downloader, downloaded);
-        blob.download(&self.repo.blobs_path, Arc::new(downloader))
-            .await?;
-
-        done.store(true, Ordering::Relaxed);
-        let _ = poll_handle.await;
 
         Ok(())
     }
