@@ -41,11 +41,11 @@ impl ConfigWrapper {
     }
 
     pub fn download_limit(&self) -> u64 {
-        self.config.download_limit.unwrap_or(5)
+        self.config.download_limit.unwrap_or(512)
     }
 
     pub fn resolve_limit(&self) -> u64 {
-        self.config.resolve_limit.unwrap_or(5)
+        self.config.resolve_limit.unwrap_or(512)
     }
 
     pub fn remote(&self) -> Option<&EndsWithSlash> {
