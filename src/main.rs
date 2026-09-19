@@ -10,7 +10,7 @@ use clap::{Parser, Subcommand};
 use std::{path::PathBuf, sync::Arc};
 use tokio::fs;
 use treeup::{downloader::ReqwestDownloader, object::Object};
-use treeup_core::downloader::Downloader;
+use treeup_core::downloader::ObjectDownloader;
 use utils::EndsWithSlash;
 
 #[derive(Parser)]
@@ -211,7 +211,7 @@ async fn resolve_pointer_local(repo: &Repo, pointer: String) -> Result<Commit> {
 async fn resolve_pointer_remote(
     repo: &Repo,
     pointer: String,
-    downloader: Arc<impl Downloader>,
+    downloader: Arc<impl ObjectDownloader>,
 ) -> Result<Commit> {
     match Pointer::resolve_all(repo, pointer, downloader.clone()).await? {
         Some(pointer) => Ok(pointer.pull_commit(repo, downloader).await?),

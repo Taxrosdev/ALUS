@@ -2,7 +2,7 @@ use reqwest::{Client, StatusCode};
 use std::{io, sync::Arc};
 use tokio::fs;
 use treeup::object::Object;
-use treeup_core::downloader::Downloader;
+use treeup_core::downloader::{Downloader, ObjectDownloader};
 
 use crate::{Result, commit::Commit, repo::Repo};
 
@@ -73,7 +73,7 @@ impl Branch {
     pub async fn pull_commit(
         &self,
         repo: &Repo,
-        downloader: Arc<impl Downloader>,
+        downloader: Arc<impl ObjectDownloader>,
     ) -> Result<Commit> {
         let hash = hex::decode(&self.target)?;
 
