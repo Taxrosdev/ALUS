@@ -16,6 +16,7 @@ pub struct Config {
     pub current_branch: Option<String>,
     pub download_limit: Option<u64>,
     pub resolve_limit: Option<u64>,
+    pub max_packfile_insert: Option<u64>,
 }
 
 impl ConfigWrapper {
@@ -40,12 +41,23 @@ impl ConfigWrapper {
         Ok(())
     }
 
+    pub fn set_max_packfile_insert(&mut self, limit: Option<u64>) -> io::Result<()> {
+        self.config.max_packfile_insert = limit;
+
+        self.write()?;
+        Ok(())
+    }
+
     pub fn download_limit(&self) -> u64 {
-        self.config.download_limit.unwrap_or(512)
+        self.config.download_limit.unwrap_or(128)
     }
 
     pub fn resolve_limit(&self) -> u64 {
-        self.config.resolve_limit.unwrap_or(512)
+        self.config.resolve_limit.unwrap_or(128)
+    }
+
+    pub fn max_packfile_insert(&self) -> u64 {
+        self.config.max_packfile_insert.unwrap_or(32 * 1024)
     }
 
     pub fn remote(&self) -> Option<&EndsWithSlash> {

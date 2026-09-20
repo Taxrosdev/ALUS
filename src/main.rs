@@ -63,6 +63,7 @@ enum ConfigCommand {
     Remote { url: Option<String> },
     DownloadLimit { limit: Option<u64> },
     ResolveLimit { limit: Option<u64> },
+    MaxPackfileInsert { limit: Option<u64> },
     CurrentBranch { branch: Option<String> },
 }
 
@@ -186,6 +187,10 @@ async fn main() -> Result<()> {
             ConfigCommand::ResolveLimit { limit } => match limit {
                 Some(limit) => repo.config.set_resolve_limit(Some(limit))?,
                 None => logging::log(repo.config.resolve_limit().to_string()),
+            },
+            ConfigCommand::MaxPackfileInsert { limit } => match limit {
+                Some(limit) => repo.config.set_max_packfile_insert(Some(limit))?,
+                None => logging::log(repo.config.max_packfile_insert().to_string()),
             },
             ConfigCommand::DownloadLimit { limit } => match limit {
                 Some(limit) => repo.config.set_download_limit(Some(limit))?,

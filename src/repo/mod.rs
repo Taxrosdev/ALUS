@@ -26,8 +26,16 @@ impl Repo {
         let config_path = Self::config_path(&local_path);
         let config = ConfigWrapper::new(config_path).await?;
 
+        let object_cas = Arc::new(
+            PackfileCAS::create(
+                local_path.join("objects"),
+                config.max_packfile_insert() as usize,
+            )
+            .await?,
+        );
+
         Ok(Repo {
-            object_cas: Arc::new(PackfileCAS::create(local_path.join("objects"), 4096).await?),
+            object_cas,
             blobs_path: local_path.join("blobs"),
             config,
             local_path,
