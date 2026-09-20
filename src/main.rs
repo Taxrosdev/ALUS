@@ -9,8 +9,10 @@ use alus::{
 use clap::{Parser, Subcommand};
 use std::{path::PathBuf, sync::Arc};
 use tokio::fs;
-use treeup::{downloader::ReqwestDownloader, object::Object};
-use treeup_core::downloader::ObjectDownloader;
+use treeup::{
+    downloader::{ObjectDownloader, PackfileDownloader, ReqwestDownloader},
+    object::Object,
+};
 use utils::EndsWithSlash;
 
 #[derive(Parser)]
@@ -75,20 +77,27 @@ async fn main() -> Result<()> {
     match args.command {
         Commands::Update => {
             let remote = get_remote(&repo);
-            let downloader = Arc::new(ReqwestDownloader::new(
+            let blob_downloader = Arc::new(ReqwestDownloader::new(
                 &(remote.to_string() + "objects"),
                 &(remote.to_string() + "blobs"),
                 remote.clone().into(),
             ));
+            let packfile_downloader =
+                Arc::new(PackfileDownloader::from_downloader(blob_downloader.clone()));
 
             // Get the latest commit from current
             let branch = get_current_branch(&repo);
-            let _ = Branch::pull(&repo, branch.clone(), downloader.clone()).await;
-            let commit = resolve_pointer_remote(&repo, branch, downloader.clone()).await?;
+            let _ = Branch::pull(&repo, branch.clone(), packfile_downloader.clone()).await;
+            let commit = resolve_pointer_remote(&repo, branch, packfile_downloader.clone()).await?;
             let commit_hash = commit.hash()?;
 
             // Pull
-            let tree_puller = Puller::new(Arc::new(repo.clone()), downloader, None);
+            let tree_puller = Puller::new(
+                Arc::new(repo.clone()),
+                blob_downloader,
+                packfile_downloader,
+                None,
+            );
             tree_puller.download_commit(commit.clone(), false).await?;
 
             // Switch/Checkout
@@ -143,10 +152,14 @@ async fn main() -> Result<()> {
                 &(remote.to_string() + "blobs"),
                 remote.into(),
             ));
+            let packfile_downloader =
+                Arc::new(PackfileDownloader::from_downloader(downloader.clone()));
 
-            let commit = resolve_pointer_remote(&repo, pointer, downloader.clone()).await?;
+            let commit =
+                resolve_pointer_remote(&repo, pointer, packfile_downloader.clone()).await?;
 
-            let tree_puller = Puller::new(Arc::new(repo), downloader, clone_from);
+            let tree_puller =
+                Puller::new(Arc::new(repo), downloader, packfile_downloader, clone_from);
 
             tree_puller.download_commit(commit, false).await?;
         }

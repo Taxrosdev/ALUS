@@ -13,10 +13,10 @@ use tokio::{sync::Semaphore, time::sleep};
 use treeup::{
     Tree,
     blob::BlobRef,
-    downloader::{ProgressDownloader, ReqwestDownloader},
+    downloader::{PackfileDownloader, ProgressDownloader, ReqwestDownloader},
     object::Object,
+    object_cas::ObjectCAS,
 };
-use treeup_core::object_cas::ObjectCAS;
 
 use crate::{commit::Commit, logging::Progress, repo::Repo};
 
@@ -24,19 +24,22 @@ use crate::{commit::Commit, logging::Progress, repo::Repo};
 pub struct Puller {
     repo: Arc<Repo>,
     clone_from: Option<Arc<Repo>>,
-    reqwest_downloader: Arc<ReqwestDownloader>,
+    blob_downloader: Arc<ReqwestDownloader>,
+    object_downloader: Arc<PackfileDownloader>,
 }
 
 impl Puller {
     pub fn new(
         repo: Arc<Repo>,
         reqwest_downloader: Arc<ReqwestDownloader>,
+        packfile_downloader: Arc<PackfileDownloader>,
         clone_from: Option<Arc<Repo>>,
     ) -> Self {
         Puller {
             repo,
             clone_from,
-            reqwest_downloader,
+            blob_downloader: reqwest_downloader,
+            object_downloader: packfile_downloader,
         }
     }
 
@@ -136,7 +139,7 @@ impl Puller {
                 &*self.repo.object_cas,
                 clone_from.map(|repo| repo.object_cas.clone()),
                 object_hash,
-                self.reqwest_downloader.clone(),
+                self.object_downloader.clone(),
             )
             .await?;
 
@@ -197,7 +200,7 @@ impl Puller {
         } else {
             // Actually download
             let downloader =
-                ProgressDownloader::from_downloader(self.reqwest_downloader.clone(), downloaded);
+                ProgressDownloader::from_downloader(self.blob_downloader.clone(), downloaded);
             blob.download(&self.repo.blobs_path, Arc::new(downloader))
                 .await?;
         }
@@ -211,7 +214,7 @@ async fn clone_or_download_tree(
     cas: &impl ObjectCAS,
     old_cas: Option<Arc<impl ObjectCAS>>,
     object_hash: &[u8],
-    downloader: Arc<ReqwestDownloader>,
+    downloader: Arc<PackfileDownloader>,
 ) -> crate::error::Result<()> {
     // Try and clone the existing tree
     if let Some(old_cas) = &old_cas {

@@ -1,7 +1,6 @@
 use std::{path::Path, path::PathBuf};
 use tokio::fs;
-use treeup::{Tree, blob::BlobRef, object::Object};
-use treeup_core::object_cas::ObjectCAS;
+use treeup::{Tree, blob::BlobRef, object::Object, object_cas::ObjectCAS};
 use utils::atomic_rename;
 
 use crate::{

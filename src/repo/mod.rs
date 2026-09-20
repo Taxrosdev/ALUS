@@ -5,13 +5,13 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use treeup::object::cas::BasicFS;
+use treeup::object::cas::PackfileCAS;
 
 use crate::repo::config::ConfigWrapper;
 
 #[derive(Clone)]
 pub struct Repo {
-    pub object_cas: Arc<BasicFS>,
+    pub object_cas: Arc<PackfileCAS>,
     pub blobs_path: PathBuf,
     pub local_path: PathBuf,
     pub config: ConfigWrapper,
@@ -27,7 +27,7 @@ impl Repo {
         let config = ConfigWrapper::new(config_path).await?;
 
         Ok(Repo {
-            object_cas: Arc::new(BasicFS::create(local_path.join("objects")).await?),
+            object_cas: Arc::new(PackfileCAS::create(local_path.join("objects"), 4096).await?),
             blobs_path: local_path.join("blobs"),
             config,
             local_path,

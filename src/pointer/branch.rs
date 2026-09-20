@@ -1,8 +1,10 @@
 use reqwest::{Client, StatusCode};
 use std::{io, sync::Arc};
 use tokio::fs;
-use treeup::object::Object;
-use treeup_core::downloader::{Downloader, ObjectDownloader};
+use treeup::{
+    downloader::{Downloader, ObjectDownloader},
+    object::Object,
+};
 
 use crate::{Result, commit::Commit, repo::Repo};
 

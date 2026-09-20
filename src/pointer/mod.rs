@@ -1,6 +1,6 @@
 use std::{io, sync::Arc};
+use treeup::downloader::ObjectDownloader;
 use treeup::object::Object;
-use treeup_core::downloader::ObjectDownloader;
 
 pub mod branch;
 pub use branch::Branch;
