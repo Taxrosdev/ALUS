@@ -1,8 +1,8 @@
 use async_recursion::async_recursion;
+use dashmap::DashSet;
 use futures_util::{StreamExt, TryStreamExt, stream};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{
-    collections::HashSet,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -48,35 +48,34 @@ impl Puller {
         commit: Commit,
         metadata_only: bool,
     ) -> crate::error::Result<()> {
-        let mut blobs = Vec::new();
+        let blobs = Arc::new(DashSet::with_hasher(ahash::RandomState::new()));
 
         // Progress Bars
         let progress = Progress::new();
 
         if !metadata_only {
             if !commit.initramfs.exists(&self.repo.blobs_path).await? {
-                blobs.push(commit.initramfs.clone())
+                blobs.insert(commit.initramfs.clone());
             }
             if !commit.vmlinuz.exists(&self.repo.blobs_path).await? {
-                blobs.push(commit.vmlinuz.clone())
+                blobs.insert(commit.vmlinuz.clone());
             }
         }
 
         let usr_hash = hex::decode(commit.usr_tree)?;
-        blobs.extend(
-            Self::download_tree_metadata_recursively(
-                self.clone(),
-                usr_hash,
-                Arc::new(Semaphore::new(self.repo.config.resolve_limit() as usize)),
-            )
-            .await?,
-        );
+        Self::download_tree_metadata_recursively(
+            self.clone(),
+            usr_hash,
+            Arc::new(Semaphore::new(self.repo.config.resolve_limit() as usize)),
+            blobs.clone(),
+        )
+        .await?;
         progress.finish_resolving();
 
         // Download blobs
         if !metadata_only {
             let blobs_path = self.repo.blobs_path.clone();
-            let missing_blobs = stream::iter(blobs)
+            let missing_blobs = stream::iter(blobs.iter())
                 .map(async |blob| (blob.clone(), blob.exists(&blobs_path).await))
                 .buffer_unordered(32) // Not really tuneable
                 .filter_map(async |(blob, exists)| match exists {
@@ -129,10 +128,15 @@ impl Puller {
         Ok(())
     }
 
-    async fn download_tree(&self, object_hash: &[u8]) -> crate::error::Result<Tree> {
+    async fn download_tree(
+        &self,
+        object_hash: &[u8],
+        semaphore: &Semaphore,
+    ) -> crate::error::Result<Tree> {
         if Tree::exists(&*self.repo.object_cas, object_hash).await? {
             Ok(Tree::get(&*self.repo.object_cas, object_hash).await?)
         } else {
+            let permit = semaphore.acquire().await.unwrap();
             // Download THIS tree
             let clone_from = self.clone_from.clone();
             clone_or_download_tree(
@@ -142,6 +146,7 @@ impl Puller {
                 self.object_downloader.clone(),
             )
             .await?;
+            drop(permit);
 
             Ok(Tree::get(&*self.repo.object_cas, object_hash).await?)
         }
@@ -152,16 +157,13 @@ impl Puller {
         self,
         object_hash: Vec<u8>,
         semaphore: Arc<Semaphore>,
-    ) -> crate::error::Result<HashSet<BlobRef>> {
-        let permit = semaphore.acquire().await.unwrap();
-        let tree = self.download_tree(&object_hash).await?;
-        drop(permit);
+        blobs: Arc<DashSet<BlobRef, ahash::RandomState>>,
+    ) -> crate::error::Result<()> {
+        let tree = self.download_tree(&object_hash, &semaphore).await?;
 
-        let mut blobs = tree
-            .files
-            .iter()
-            .map(|f| f.blob.clone())
-            .collect::<HashSet<_>>();
+        tree.files.iter().map(|f| f.blob.clone()).for_each(|b| {
+            blobs.insert(b);
+        });
 
         // Download dependent subtrees
         let mut tasks = Vec::new();
@@ -173,15 +175,15 @@ impl Puller {
                 puller.clone(),
                 tree_hash,
                 semaphore.clone(),
+                blobs.clone(),
             )));
         }
 
         for task in tasks {
-            let new_blobs = task.await.expect("tokio join error")?;
-            blobs.extend(new_blobs)
+            task.await.expect("tokio join error")?;
         }
 
-        Ok(blobs)
+        Ok(())
     }
 
     async fn download_blob(
