@@ -45,7 +45,7 @@ impl Puller {
 
     pub async fn download_commit(
         self,
-        commit: Commit,
+        commit: &Commit,
         metadata_only: bool,
     ) -> crate::error::Result<()> {
         let blobs = Arc::new(DashSet::with_hasher(ahash::RandomState::new()));
@@ -62,7 +62,7 @@ impl Puller {
             }
         }
 
-        let usr_hash = hex::decode(commit.usr_tree)?;
+        let usr_hash = hex::decode(&commit.usr_tree)?;
         Self::download_tree_metadata_recursively(
             self.clone(),
             usr_hash,
@@ -161,7 +161,7 @@ impl Puller {
     ) -> crate::error::Result<()> {
         let tree = self.download_tree(&object_hash, &semaphore).await?;
 
-        tree.files.iter().map(|f| f.blob.clone()).for_each(|b| {
+        tree.files.into_iter().map(|f| f.blob).for_each(|b| {
             blobs.insert(b);
         });
 

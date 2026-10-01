@@ -99,7 +99,7 @@ async fn main() -> Result<()> {
                 packfile_downloader,
                 None,
             );
-            tree_puller.download_commit(commit.clone(), false).await?;
+            tree_puller.download_commit(&commit, false).await?;
 
             // Switch/Checkout
             fs::create_dir_all(&boot_path).await?;
@@ -162,7 +162,7 @@ async fn main() -> Result<()> {
             let tree_puller =
                 Puller::new(Arc::new(repo), downloader, packfile_downloader, clone_from);
 
-            tree_puller.download_commit(commit, false).await?;
+            tree_puller.download_commit(&commit, false).await?;
         }
         Commands::Commit {
             initramfs,
