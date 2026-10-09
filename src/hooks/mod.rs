@@ -55,6 +55,10 @@ impl Hook {
     }
 
     pub async fn load_hooks(prefix: &Path) -> crate::error::Result<Vec<Hook>> {
+        if !prefix.join(HOOKS_PATH).exists() {
+            return Ok(Vec::new());
+        }
+
         let mut hooks = Vec::new();
         let mut read_dir = fs::read_dir(prefix.join(HOOKS_PATH)).await?;
         while let Some(entry) = read_dir.next_entry().await? {

@@ -110,6 +110,7 @@ impl Commit {
         // Switch staging <-> usr
         logging::log("Swapping staging and usr");
         atomic_rename(usr_staging_path.clone(), usr_path).await?;
+        logging::log("Swapped staging and usr");
         if fs::try_exists(&usr_staging_path).await? {
             logging::debug("Removing old usr...");
             fs::remove_dir_all(usr_staging_path).await?;
@@ -133,13 +134,17 @@ impl Commit {
         logging::debug("Creating components");
         // Components
         let mut components = Vec::new();
-        for (id, definition) in
-            Components::load_definitions(&usr_path.join("share/alus/components"))
+        let components_path = usr_path.join("share/alus/components");
+        if components_path.exists() {
+            for (id, definition) in Components::load_definitions(&components_path)
                 .await?
                 .entries
-        {
-            let component = definition.commit(id, repo, usr_path).await?;
-            components.push(component);
+            {
+                let component = definition.commit(id, repo, usr_path).await?;
+                components.push(component);
+            }
+        } else {
+            logging::debug("Skipping components, no definitions exist.")
         }
 
         logging::debug("Creating usr tree");
