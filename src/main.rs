@@ -33,7 +33,7 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Permanently switches to a branch ONLY. Day-to-Day system administration should use this.
+    /// Permanently switches to a branch.
     Switch { pointer: String },
     /// Checks out *one time only*. Useful for inspecting a commit/branch in development.
     Checkout { pointer: String },
