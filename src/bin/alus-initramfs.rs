@@ -10,7 +10,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let commit_hash = get_commit_hash()?;
     let repo = Repo::new(sysroot.join(".alus")).await?;
     let commit = Commit::get(&*repo.object_cas, &commit_hash).await?;
-    commit.deploy_usr(&repo, usr_path, &sysroot).await?;
+    commit.deploy(&repo, usr_path, &sysroot).await?;
 
     Ok(())
 }

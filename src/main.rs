@@ -8,7 +8,6 @@ use alus::{
 };
 use clap::{Parser, Subcommand};
 use std::{path::PathBuf, sync::Arc};
-use tokio::fs;
 use treeup::{
     downloader::{ObjectDownloader, PackfileDownloader, ReqwestDownloader},
     object::Object,
@@ -20,9 +19,6 @@ struct Args {
     #[command(subcommand)]
     command: Commands,
 
-    #[arg(long)]
-    /// Defaults to /boot
-    boot: Option<PathBuf>,
     /// Defaults to /usr
     #[arg(long)]
     usr: Option<PathBuf>,
@@ -72,7 +68,6 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     let repo_path = args.repo.unwrap_or_else(|| PathBuf::from("/.alus"));
     let usr_path = args.usr.unwrap_or_else(|| PathBuf::from("/usr"));
-    let boot_path = args.boot.unwrap_or_else(|| PathBuf::from("/boot"));
     let mut repo = Repo::new(repo_path).await?;
 
     match args.command {
@@ -90,7 +85,6 @@ async fn main() -> Result<()> {
             let branch = get_current_branch(&repo);
             let _ = Branch::pull(&repo, branch.clone(), packfile_downloader.clone()).await;
             let commit = resolve_pointer_remote(&repo, branch, packfile_downloader.clone()).await?;
-            let commit_hash = commit.hash()?;
 
             // Pull
             let tree_puller = Puller::new(
@@ -102,41 +96,21 @@ async fn main() -> Result<()> {
             tree_puller.download_commit(&commit, false).await?;
 
             // Switch/Checkout
-            fs::create_dir_all(&boot_path).await?;
-            let initramfs = &boot_path.join(format!("initramfs-{commit_hash}"));
-            let vmlinuz = &boot_path.join(format!("vmlinuz-{commit_hash}"));
-
-            commit
-                .deploy(&repo, usr_path, initramfs, vmlinuz, &PathBuf::from("/"))
-                .await?;
+            commit.deploy(&repo, usr_path, &PathBuf::from("/")).await?;
         }
         Commands::Switch {
             pointer: pointer_str,
         } => {
             let commit = resolve_pointer(&repo, pointer_str.clone()).await?;
-            let commit_hash = commit.hash()?;
 
-            fs::create_dir_all(&boot_path).await?;
-            let initramfs = &boot_path.join(format!("initramfs-{commit_hash}"));
-            let vmlinuz = &boot_path.join(format!("vmlinuz-{commit_hash}"));
-
-            commit
-                .deploy(&repo, usr_path, initramfs, vmlinuz, &PathBuf::from("/"))
-                .await?;
+            commit.deploy(&repo, usr_path, &PathBuf::from("/")).await?;
 
             repo.config.set_current_branch(pointer_str)?;
         }
         Commands::Checkout { pointer } => {
             let commit = resolve_pointer(&repo, pointer.clone()).await?;
-            let commit_hash = commit.hash()?;
 
-            fs::create_dir_all(&boot_path).await?;
-            let initramfs = &boot_path.join(format!("initramfs-{commit_hash}"));
-            let vmlinuz = &boot_path.join(format!("vmlinuz-{commit_hash}"));
-
-            commit
-                .deploy(&repo, usr_path, initramfs, vmlinuz, &PathBuf::from("/"))
-                .await?;
+            commit.deploy(&repo, usr_path, &PathBuf::from("/")).await?;
         }
         Commands::Pull {
             pointer,
