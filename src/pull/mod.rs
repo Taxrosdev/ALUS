@@ -1,7 +1,6 @@
 use async_recursion::async_recursion;
 use dashmap::DashSet;
 use futures_util::{StreamExt, TryStreamExt, stream};
-use indicatif::{ProgressBar, ProgressStyle};
 use std::{
     sync::{
         Arc,
@@ -49,18 +48,7 @@ impl Puller {
         metadata_only: bool,
     ) -> crate::error::Result<()> {
         let blobs = Arc::new(DashSet::with_hasher(ahash::RandomState::new()));
-
-        // Progress Bars
         let progress = Progress::new();
-
-        if !metadata_only {
-            if !commit.initramfs.exists(&self.repo.blobs_path).await? {
-                blobs.insert(commit.initramfs.clone());
-            }
-            if !commit.vmlinuz.exists(&self.repo.blobs_path).await? {
-                blobs.insert(commit.vmlinuz.clone());
-            }
-        }
 
         let usr_hash = hex::decode(&commit.usr_tree)?;
         Self::download_tree_metadata_recursively(
@@ -70,7 +58,6 @@ impl Puller {
             blobs.clone(),
         )
         .await?;
-        progress.finish_resolving();
 
         // Download blobs
         if !metadata_only {
@@ -88,28 +75,18 @@ impl Puller {
 
             // Download ProgressBar
             let total_size: u64 = missing_blobs.iter().map(|blob| blob.size).sum();
-            let download_progress = ProgressBar::new(total_size)
-                    .with_message("Downloading...")
-                    .with_style(
-                        ProgressStyle::with_template(
-                            "{spinner:.cyan} {msg} {bytes}/{total_bytes} {bar:30.cyan/blue} [{bytes_per_sec}] {eta}",
-                        )
-                        .expect("Progress bar error")
-                    );
-            download_progress.set_position(0);
-            progress.multi_progress.add(download_progress.clone());
-
+            progress.finish_resolving(total_size);
             let downloaded = Arc::new(AtomicU64::new(0));
+
             let download_poll = {
+                let progress = progress.to_owned();
                 let downloaded = downloaded.clone();
-                let download_progress = download_progress.clone();
+
                 tokio::spawn(async move {
-                    let duration = Duration::from_millis(10);
-                    let downloaded = downloaded;
+                    let duration = Duration::from_millis(50);
                     loop {
                         sleep(duration).await;
-                        let downloaded_amt = downloaded.load(std::sync::atomic::Ordering::Relaxed);
-                        download_progress.set_position(downloaded_amt);
+                        progress.set_downloading(&downloaded);
                     }
                 })
             };
@@ -122,7 +99,7 @@ impl Puller {
 
             download_poll.abort();
             let _ = download_poll.await;
-            download_progress.finish_with_message("Downloaded");
+            progress.finish();
         }
 
         Ok(())

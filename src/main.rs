@@ -30,9 +30,13 @@ struct Args {
 #[derive(Subcommand)]
 enum Commands {
     /// Permanently switches to a branch.
-    Switch { pointer: String },
+    Switch {
+        pointer: String,
+    },
     /// Checks out *one time only*. Useful for inspecting a commit/branch in development.
-    Checkout { pointer: String },
+    Checkout {
+        pointer: String,
+    },
     /// Refreshes to the latest branch/commit and switches to it.
     /// TLDR: Updates your computer!
     Update,
@@ -43,11 +47,7 @@ enum Commands {
         #[arg(long)]
         clone_from: Option<PathBuf>,
     },
-    Commit {
-        initramfs: PathBuf,
-        vmlinuz: PathBuf,
-        parent_commit: Option<String>,
-    },
+    Commit,
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
@@ -138,13 +138,8 @@ async fn main() -> Result<()> {
 
             tree_puller.download_commit(&commit, false).await?;
         }
-        Commands::Commit {
-            initramfs,
-            vmlinuz,
-            parent_commit,
-        } => {
-            let commit =
-                Commit::create(&repo, &usr_path, &initramfs, &vmlinuz, parent_commit).await?;
+        Commands::Commit => {
+            let commit = Commit::create(&repo, &usr_path).await?;
 
             logging::log("Created commit ".to_string() + &commit.hash()?);
         }

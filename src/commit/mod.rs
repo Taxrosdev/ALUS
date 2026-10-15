@@ -1,6 +1,6 @@
 use std::{path::Path, path::PathBuf};
 use tokio::fs;
-use treeup::{Tree, blob::BlobRef, object::Object, object_cas::ObjectCAS};
+use treeup::{Tree, object::Object, object_cas::ObjectCAS};
 use utils::atomic_rename;
 
 use crate::{
@@ -13,11 +13,6 @@ use crate::{
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct Commit {
     pub usr_tree: String,
-
-    pub initramfs: BlobRef,
-    pub vmlinuz: BlobRef,
-
-    parent_commit: Option<String>,
 
     components: Vec<CommittedComponent>,
 }
@@ -82,18 +77,7 @@ impl Commit {
         Ok(())
     }
 
-    pub async fn create(
-        repo: &Repo,
-        usr_path: &Path,
-        initramfs_path: &Path,
-        vmlinuz_path: &Path,
-        parent_commit: Option<String>,
-    ) -> crate::Result<Self> {
-        // initramfs/vmlinuz
-        logging::debug("Creating blobs for initramfs and vmlinuz");
-        let initramfs = BlobRef::create(&repo.blobs_path, initramfs_path).await?;
-        let vmlinuz = BlobRef::create(&repo.blobs_path, vmlinuz_path).await?;
-
+    pub async fn create(repo: &Repo, usr_path: &Path) -> crate::Result<Self> {
         logging::debug("Creating components");
         // Components
         let mut components = Vec::new();
@@ -118,9 +102,6 @@ impl Commit {
 
         let commit = Commit {
             usr_tree: usr_hash,
-            initramfs,
-            vmlinuz,
-            parent_commit,
             components,
         };
 
