@@ -1,7 +1,7 @@
+use crate::utils::atomic_rename;
 use std::{path::Path, path::PathBuf};
 use tokio::fs;
 use treeup::{Tree, object::Object, object_cas::ObjectCAS};
-use utils::atomic_rename;
 
 use crate::{
     components::{CommittedComponent, Components},

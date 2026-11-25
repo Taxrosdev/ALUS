@@ -1,8 +1,8 @@
 use std::{io, path::PathBuf};
 use tokio::fs;
-use utils::EndsWithSlash;
 
 use crate::logging;
+use crate::utils::EndsWithSlash;
 
 #[derive(Clone)]
 pub struct ConfigWrapper {

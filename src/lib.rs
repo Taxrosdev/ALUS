@@ -7,3 +7,4 @@ pub mod logging;
 pub mod pointer;
 pub mod pull;
 pub mod repo;
+pub mod utils;

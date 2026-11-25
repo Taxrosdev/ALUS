@@ -1,8 +1,0 @@
-[package]
-name = "utils"
-edition = "2024"
-
-[dependencies]
-serde.workspace = true
-nix.workspace = true
-tokio = { workspace = true, features = ["rt"] }

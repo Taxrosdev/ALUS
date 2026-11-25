@@ -1,9 +1,7 @@
 use console::{Style, style};
 use indicatif::{MultiProgress, ProgressDrawTarget, ProgressStyle};
 use std::{
-    env::var_os,
-    ffi::OsString,
-    process::{Output, exit},
+    process::Output,
     sync::{
         Arc, RwLock,
         atomic::{AtomicU64, Ordering},
@@ -11,10 +9,11 @@ use std::{
     time::Duration,
 };
 
+use crate::utils::parse_var;
+
 const STYLE_LOG: Style = Style::new();
 const STYLE_WARN: Style = Style::new().yellow();
 const STYLE_DEBUG: Style = Style::new().color256(248).force_styling(true);
-const STYLE_FATAL: Style = Style::new().red();
 
 pub fn log(message: impl AsRef<str>) {
     eprintln!("{}", STYLE_LOG.apply_to(message.as_ref()));
@@ -26,11 +25,6 @@ pub fn debug(message: impl AsRef<str>) {
 
 pub fn warn(message: impl AsRef<str>) {
     eprintln!("Warning: {}", STYLE_WARN.apply_to(message.as_ref()));
-}
-
-pub fn die(message: impl AsRef<str>) -> ! {
-    eprintln!("Fatal Error: {}", STYLE_FATAL.apply_to(message.as_ref()));
-    exit(1)
 }
 
 pub fn hook(output: &Output) {
@@ -68,14 +62,12 @@ struct JsonOutput {
 const PROGRESSBAR_TICK_INTERVAL: Duration = Duration::from_millis(150);
 
 impl Progress {
-    pub fn new() -> Progress {
-        match var_os("ALUS_STATUS_OUTPUT")
-            .unwrap_or(OsString::from("BAR"))
-            .into_string()
-            .expect("ALUS_STATUS_OUTPUT should be a UTF8 String.")
-            .as_str()
-        {
-            "BAR" => {
+    pub fn new() -> crate::Result<Progress> {
+        match parse_var("ALUS_STATUS_OUTPUT")?.as_deref() {
+            Some("JSON") => Ok(Progress::Json {
+                download_total: Arc::new(RwLock::new(0)),
+            }),
+            _ => {
                 let mp = MultiProgress::new();
                 let resolve_bar = indicatif::ProgressBar::new(0)
                     .with_message("Resolving...")
@@ -85,16 +77,12 @@ impl Progress {
                 resolve_bar.enable_steady_tick(PROGRESSBAR_TICK_INTERVAL);
                 download_bar.enable_steady_tick(PROGRESSBAR_TICK_INTERVAL);
 
-                Progress::Bar {
+                Ok(Progress::Bar {
                     mp,
                     download_bar,
                     resolve_bar,
-                }
+                })
             }
-            "JSON" => Progress::Json {
-                download_total: Arc::new(RwLock::new(0)),
-            },
-            _ => die("Invalid ALUS_OUTPUT"),
         }
     }
 
@@ -183,11 +171,5 @@ impl Progress {
                 download_bar.finish_with_message("Downloaded");
             }
         }
-    }
-}
-
-impl Default for Progress {
-    fn default() -> Self {
-        Self::new()
     }
 }

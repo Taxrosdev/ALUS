@@ -5,6 +5,7 @@ use alus::{
     pointer::{Branch, Pointer},
     pull::Puller,
     repo::Repo,
+    utils::EndsWithSlash,
 };
 use clap::{Parser, Subcommand};
 use std::{path::PathBuf, sync::Arc};
@@ -12,7 +13,6 @@ use treeup::{
     downloader::{ObjectDownloader, PackfileDownloader, ReqwestDownloader},
     object::Object,
 };
-use utils::EndsWithSlash;
 
 #[derive(Parser)]
 struct Args {
@@ -72,7 +72,7 @@ async fn main() -> Result<()> {
 
     match args.command {
         Commands::Update => {
-            let remote = get_remote(&repo);
+            let remote = get_remote(&repo)?;
             let blob_downloader = Arc::new(ReqwestDownloader::new(
                 &(remote.to_string() + "objects"),
                 &(remote.to_string() + "blobs"),
@@ -82,7 +82,7 @@ async fn main() -> Result<()> {
                 Arc::new(PackfileDownloader::from_downloader(blob_downloader.clone()));
 
             // Get the latest commit from current
-            let branch = get_current_branch(&repo);
+            let branch = get_current_branch(&repo)?;
             let _ = Branch::pull(&repo, branch.clone(), packfile_downloader.clone()).await;
             let commit = resolve_pointer_remote(&repo, branch, packfile_downloader.clone()).await?;
 
@@ -116,7 +116,7 @@ async fn main() -> Result<()> {
             pointer,
             clone_from,
         } => {
-            let remote = get_remote(&repo);
+            let remote = get_remote(&repo)?;
             let clone_from = match clone_from {
                 Some(path) => Some(Arc::new(Repo::new(path).await?)),
                 None => None,
@@ -188,10 +188,10 @@ async fn resolve_pointer(repo: &Repo, pointer: String) -> Result<Commit> {
     })
 }
 
-async fn resolve_pointer_local(repo: &Repo, pointer: String) -> Result<Commit> {
-    match Pointer::resolve_local(repo, pointer).await? {
+async fn resolve_pointer_local(repo: &Repo, pointer: String) -> alus::Result<Commit> {
+    match Pointer::resolve_local(repo, pointer.clone()).await? {
         Some(pointer) => Ok(pointer.get_commit(repo).await?),
-        None => logging::die("Could not find pointer."),
+        None => Err(alus::Error::PointerNotFound(pointer)),
     }
 }
 
@@ -200,24 +200,22 @@ async fn resolve_pointer_remote(
     pointer: String,
     downloader: Arc<impl ObjectDownloader>,
 ) -> Result<Commit> {
-    match Pointer::resolve_all(repo, pointer, downloader.clone()).await? {
+    match Pointer::resolve_all(repo, pointer.clone(), downloader.clone()).await? {
         Some(pointer) => Ok(pointer.pull_commit(repo, downloader).await?),
-        None => logging::die("Could not find pointer."),
+        None => Err(alus::Error::PointerNotFound(pointer)),
     }
 }
 
-/// Will die if remote is not set
-fn get_remote(repo: &Repo) -> EndsWithSlash {
+fn get_remote(repo: &Repo) -> alus::Result<EndsWithSlash> {
     match repo.config.remote() {
-        Some(remote) => remote.clone(),
-        None => logging::die("No remote configured for Repo."),
+        Some(remote) => Ok(remote.clone()),
+        None => Err(alus::Error::NoRemote),
     }
 }
 
-/// Will die if current is not set
-fn get_current_branch(repo: &Repo) -> String {
+fn get_current_branch(repo: &Repo) -> alus::Result<String> {
     match repo.config.current_branch() {
-        Some(branch) => branch,
-        None => logging::die("Repo has no current.\nNever switched previously?"),
+        Some(branch) => Ok(branch),
+        None => Err(alus::Error::NoCurrent),
     }
 }

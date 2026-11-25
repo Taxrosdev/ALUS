@@ -7,7 +7,7 @@ use std::{
 use tokio::fs;
 use treeup::{Tree, object::Object};
 
-use crate::{logging, repo::Repo};
+use crate::repo::Repo;
 
 pub struct Components {
     pub entries: HashMap<String, ComponentDefinition>,
@@ -82,7 +82,7 @@ impl Components {
                 .split_once('.')
             {
                 if ext != "toml" {
-                    logging::die(format!("File extension in {} is not .toml", path.display()))
+                    Err(crate::Error::TomlExtensionError(path.to_path_buf()))?
                 }
 
                 let raw = fs::read_to_string(entry.path()).await?;
@@ -90,11 +90,11 @@ impl Components {
 
                 // Ensure there is only one of internal/external, and that one is specified.
                 if !component.internal.is_empty() && !component.external.is_empty() {
-                    logging::die("Both Insert and Extract defined for a Component")
-                }
+                    return Err(crate::Error::InsertExtractError(path.to_path_buf()));
+                };
                 if component.internal.is_empty() && component.external.is_empty() {
-                    logging::die("No Insert and Extract sections defined for a Component")
-                }
+                    return Err(crate::Error::NoInsertExtractError(path.to_path_buf()));
+                };
 
                 entries.insert(id.to_string(), component);
             }

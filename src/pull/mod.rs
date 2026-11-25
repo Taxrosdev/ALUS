@@ -48,7 +48,7 @@ impl Puller {
         metadata_only: bool,
     ) -> crate::error::Result<()> {
         let blobs = Arc::new(DashSet::with_hasher(ahash::RandomState::new()));
-        let progress = Progress::new();
+        let progress = Progress::new()?;
 
         let usr_hash = hex::decode(&commit.usr_tree)?;
         Self::download_tree_metadata_recursively(
