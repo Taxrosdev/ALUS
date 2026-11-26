@@ -1,12 +1,12 @@
 use reqwest::{Client, StatusCode};
-use std::{io, sync::Arc};
+use std::sync::Arc;
 use tokio::fs;
 use treeup::{
     downloader::{Downloader, ObjectDownloader},
     object::Object,
 };
 
-use crate::{Result, commit::Commit, repo::Repo};
+use crate::{commit::Commit, repo::Repo};
 
 #[derive(Debug, Clone)]
 pub struct Branch {
@@ -15,7 +15,7 @@ pub struct Branch {
 }
 
 impl Branch {
-    pub async fn get(repo: &Repo, branch_name: String) -> io::Result<Option<Self>> {
+    pub async fn get(repo: &Repo, branch_name: String) -> crate::Result<Option<Self>> {
         let path = repo.local_path.join("branch").join(&branch_name);
         if !path.exists() {
             return Ok(None);
@@ -55,17 +55,16 @@ impl Branch {
         }))
     }
 
-    pub async fn set(repo: &Repo, branch_name: String, target: String) -> io::Result<()> {
+    pub async fn set(repo: &Repo, branch_name: String, target: String) -> crate::Result<()> {
         let parent_path = repo.local_path.join("branch");
         fs::create_dir_all(&parent_path).await?;
         let path = parent_path.join(&branch_name);
-
         fs::write(path, target).await?;
 
         Ok(())
     }
 
-    pub async fn get_commit(&self, repo: &Repo) -> Result<Commit> {
+    pub async fn get_commit(&self, repo: &Repo) -> crate::Result<Commit> {
         // TODO: Handle dangling commits better
         Ok(Commit::get(&*repo.object_cas, &hex::decode(&self.target)?).await?)
     }
@@ -76,7 +75,7 @@ impl Branch {
         &self,
         repo: &Repo,
         downloader: Arc<impl ObjectDownloader>,
-    ) -> Result<Commit> {
+    ) -> crate::Result<Commit> {
         let hash = hex::decode(&self.target)?;
 
         // Download if doesn't exist.

@@ -1,4 +1,4 @@
-use std::{io, sync::Arc};
+use std::sync::Arc;
 use treeup::downloader::ObjectDownloader;
 use treeup::object::Object;
 
@@ -26,7 +26,7 @@ impl Pointer {
         Self::resolve_remote(repo, downloader, pointer).await
     }
 
-    pub async fn resolve_local(repo: &Repo, pointer: String) -> io::Result<Option<Self>> {
+    pub async fn resolve_local(repo: &Repo, pointer: String) -> crate::Result<Option<Self>> {
         if let Ok(hash) = hex::decode(&pointer)
             && Commit::exists(&*repo.object_cas, &hash).await?
         {
