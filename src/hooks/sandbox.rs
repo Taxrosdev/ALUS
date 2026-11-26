@@ -56,7 +56,7 @@ impl SandboxInstance {
         self.usr_read_only = read_only;
     }
 
-    pub fn run_unsandboxed(&self, exec: &str) -> crate::error::Result<()> {
+    pub fn run_unsandboxed(&self, exec: &str) -> crate::Result<()> {
         let output = Command::new("/usr/bin/sh")
             .arg("-c")
             .arg(exec)
@@ -70,13 +70,13 @@ impl SandboxInstance {
             Ok(())
         } else {
             match output.status.code() {
-                Some(code) => Err(crate::error::Error::HookExit(code)),
-                None => Err(crate::error::Error::HookExit(9)),
+                Some(code) => Err(crate::Error::HookExit(code)),
+                None => Err(crate::Error::HookExit(9)),
             }
         }
     }
 
-    pub fn run_sandboxed(self, exec: &str) -> crate::error::Result<()> {
+    pub fn run_sandboxed(self, exec: &str) -> crate::Result<()> {
         // 4 MB
         let mut stack = vec![0u8; 4 * 1024 * 1024].into_boxed_slice();
         let flags = CloneFlags::CLONE_NEWNS

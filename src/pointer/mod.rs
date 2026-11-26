@@ -18,7 +18,7 @@ impl Pointer {
         repo: &Repo,
         pointer: String,
         downloader: Arc<impl ObjectDownloader>,
-    ) -> crate::error::Result<Option<Pointer>> {
+    ) -> crate::Result<Option<Pointer>> {
         if let Some(pointer) = Self::resolve_local(repo, pointer.clone()).await? {
             return Ok(Some(pointer));
         };
@@ -44,7 +44,7 @@ impl Pointer {
         repo: &Repo,
         downloader: Arc<impl ObjectDownloader>,
         pointer: String,
-    ) -> crate::error::Result<Option<Pointer>> {
+    ) -> crate::Result<Option<Pointer>> {
         if let Ok(hash) = hex::decode(&pointer)
             && Commit::download(&*repo.object_cas, downloader.clone(), &hash)
                 .await
@@ -72,7 +72,7 @@ impl Pointer {
         &self,
         repo: &Repo,
         downloader: Arc<impl ObjectDownloader>,
-    ) -> crate::error::Result<Commit> {
+    ) -> crate::Result<Commit> {
         Ok(match self {
             Pointer::Commit { hash } => Commit::get(&*repo.object_cas, hash).await?,
             Pointer::Branch { branch } => branch.pull_commit(repo, downloader).await?,

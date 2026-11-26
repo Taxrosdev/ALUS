@@ -42,11 +42,7 @@ impl Puller {
         }
     }
 
-    pub async fn download_commit(
-        self,
-        commit: &Commit,
-        metadata_only: bool,
-    ) -> crate::error::Result<()> {
+    pub async fn download_commit(self, commit: &Commit, metadata_only: bool) -> crate::Result<()> {
         let blobs = Arc::new(DashSet::with_hasher(ahash::RandomState::new()));
         let progress = Progress::new()?;
 
@@ -109,7 +105,7 @@ impl Puller {
         &self,
         object_hash: &[u8],
         semaphore: &Semaphore,
-    ) -> crate::error::Result<Tree> {
+    ) -> crate::Result<Tree> {
         if Tree::exists(&*self.repo.object_cas, object_hash).await? {
             Ok(Tree::get(&*self.repo.object_cas, object_hash).await?)
         } else {
@@ -135,7 +131,7 @@ impl Puller {
         object_hash: Vec<u8>,
         semaphore: Arc<Semaphore>,
         blobs: Arc<DashSet<BlobRef, ahash::RandomState>>,
-    ) -> crate::error::Result<()> {
+    ) -> crate::Result<()> {
         let tree = self.download_tree(&object_hash, &semaphore).await?;
 
         tree.files.into_iter().map(|f| f.blob).for_each(|b| {
@@ -163,11 +159,7 @@ impl Puller {
         Ok(())
     }
 
-    async fn download_blob(
-        self,
-        blob: BlobRef,
-        downloaded: Arc<AtomicU64>,
-    ) -> crate::error::Result<()> {
+    async fn download_blob(self, blob: BlobRef, downloaded: Arc<AtomicU64>) -> crate::Result<()> {
         // Try clone, if not continue
         if let Some(old_cas) = self.clone_from.clone()
             && blob
@@ -194,7 +186,7 @@ async fn clone_or_download_tree(
     old_cas: Option<Arc<impl ObjectCAS>>,
     object_hash: &[u8],
     downloader: Arc<PackfileDownloader>,
-) -> crate::error::Result<()> {
+) -> crate::Result<()> {
     // Try and clone the existing tree
     if let Some(old_cas) = &old_cas {
         let clone_success = Tree::try_clone(&**old_cas, cas, object_hash).await?;

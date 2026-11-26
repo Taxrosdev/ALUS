@@ -33,7 +33,7 @@ impl Branch {
         repo: &Repo,
         branch_name: String,
         downloader: Arc<impl Downloader>,
-    ) -> crate::error::Result<Option<Self>> {
+    ) -> crate::Result<Option<Self>> {
         let remote = downloader.remote();
         let url = format!("{}branch/{}", remote, branch_name);
         let client = Client::new();

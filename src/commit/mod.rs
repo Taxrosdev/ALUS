@@ -25,7 +25,7 @@ impl Commit {
         repo: &Repo,
         usr_path: PathBuf,
         sysroot: &Path,
-    ) -> crate::error::Result<()> {
+    ) -> crate::Result<()> {
         logging::debug(format!("Deploying commit {}", self.hash()?));
 
         // Prepare staging usr

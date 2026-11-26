@@ -30,7 +30,7 @@ pub struct Hook {
 }
 
 impl Hook {
-    pub async fn run(&self, usr: PathBuf, host_sysroot: &Path) -> crate::error::Result<()> {
+    pub async fn run(&self, usr: PathBuf, host_sysroot: &Path) -> crate::Result<()> {
         let mut sandbox = SandboxInstance::prepare(usr, host_sysroot).await?;
 
         for (path, permission) in self.permissions.iter() {
@@ -54,7 +54,7 @@ impl Hook {
         Ok(())
     }
 
-    pub async fn load_hooks(prefix: &Path) -> crate::error::Result<Vec<Hook>> {
+    pub async fn load_hooks(prefix: &Path) -> crate::Result<Vec<Hook>> {
         if !prefix.join(HOOKS_PATH).exists() {
             return Ok(Vec::new());
         }
