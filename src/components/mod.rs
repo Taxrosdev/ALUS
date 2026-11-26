@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     io,
     path::{Path, PathBuf},
     process::Command,
@@ -10,7 +10,7 @@ use treeup::{Tree, object::Object};
 use crate::repo::Repo;
 
 pub struct Components {
-    pub entries: HashMap<String, ComponentDefinition>,
+    pub entries: BTreeMap<String, ComponentDefinition>,
 }
 
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
@@ -39,7 +39,7 @@ pub struct CommittedComponent {
     pub description: Option<String>,
     pub unique_key: Option<String>,
     /// map between a tree and the extraction path
-    trees: HashMap<PathBuf, String>,
+    trees: BTreeMap<PathBuf, String>,
 
     pub trigger: Trigger,
 }
@@ -71,7 +71,7 @@ pub enum Trigger {
 
 impl Components {
     pub async fn load_definitions(path: &Path) -> crate::Result<Self> {
-        let mut entries = HashMap::new();
+        let mut entries = BTreeMap::new();
 
         let mut read_dir = fs::read_dir(path).await?;
         while let Some(entry) = read_dir.next_entry().await? {
@@ -96,7 +96,9 @@ impl Components {
                     return Err(crate::Error::NoInsertExtractError(path.to_path_buf()));
                 };
 
-                entries.insert(id.to_string(), component);
+                if entries.insert(id.to_string(), component).is_some() {
+                    println!("Duplicate IDs in definitions: {id}")
+                };
             }
         }
 
@@ -112,7 +114,7 @@ impl ComponentDefinition {
         repo: &Repo,
         usr_path: &Path,
     ) -> io::Result<CommittedComponent> {
-        let mut trees = HashMap::new();
+        let mut trees = BTreeMap::new();
 
         // TODO: Find a way to exclude this from the eventually commited usr
         for internal in &self.internal {

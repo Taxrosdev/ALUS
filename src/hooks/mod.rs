@@ -64,11 +64,13 @@ impl Hook {
         while let Some(entry) = read_dir.next_entry().await? {
             if entry.file_name().to_string_lossy().ends_with(".toml") {
                 let raw = fs::read_to_string(entry.path()).await?;
-                hooks.push(toml::from_str(&raw)?);
+                hooks.push((entry.path(), toml::from_str(&raw)?));
             }
         }
 
-        Ok(hooks)
+        hooks.sort_by_key(|(p, _h)| p.clone().into_os_string());
+
+        Ok(hooks.into_iter().map(|(_, h)| h).collect())
     }
 }
 
